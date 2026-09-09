@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #f4f4f4;
+    color: #0a0a0a;
+    font-family: 'Archivo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+}
+
+/* Bold Typography Theme Styles */
+.massive-type {
+  font-weight: 900;
+  line-height: 0.82;
+  letter-spacing: -0.05em;
+  font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.stroke-text {
+  -webkit-text-stroke: 2px #0a0a0a;
+  color: transparent;
+}
+
+.stroke-text-orange {
+  -webkit-text-stroke: 2px #ff3e00;
+  color: transparent;
+}
+
+.stroke-text-white {
+  -webkit-text-stroke: 2px #ffffff;
+  color: transparent;
+}
+
+.vertical-rule {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.brutalist-border {
+  border: 2px solid #0a0a0a;
+}
+
+.brutalist-border-t {
+  border-top: 2px solid #0a0a0a;
+}
+
+.brutalist-border-b {
+  border-bottom: 2px solid #0a0a0a;
+}
+
+.brutalist-shadow {
+  box-shadow: 4px 4px 0px #0a0a0a;
+}
+
+.brutalist-shadow-sm {
+  box-shadow: 2px 2px 0px #0a0a0a;
+}
+
+.brutalist-shadow-orange {
+  box-shadow: 4px 4px 0px #ff3e00;
+}
+
+.brutalist-card {
+  background-color: #ffffff;
+  border: 2px solid #0a0a0a;
+  box-shadow: 4px 4px 0px #0a0a0a;
+}
+
+.brutalist-btn {
+  border: 2px solid #0a0a0a;
+  box-shadow: 3px 3px 0px #0a0a0a;
+  transition: all 0.12s ease-in-out;
+}
+
+.brutalist-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #0a0a0a;
+}
+
+.brutalist-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #0a0a0a;
+}
+

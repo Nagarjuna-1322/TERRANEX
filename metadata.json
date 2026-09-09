@@ -1,0 +1,12 @@
+{
+  "name": "Remix TerraNex",
+  "description": "AI-Powered Smart Logistics \u0026 Accessibility Intelligence Platform for the North Eastern Region (NER) of India",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

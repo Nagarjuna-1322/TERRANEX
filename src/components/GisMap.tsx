@@ -26,7 +26,9 @@ import {
   Crosshair,
   MapPin,
   Locate,
-  Navigation
+  Navigation,
+  Menu,
+  X
 } from 'lucide-react';
 import { DownloadOfflineMapModal } from './DownloadOfflineMapModal';
 import {
@@ -138,7 +140,7 @@ export const GisMap: React.FC<GisMapProps> = ({
     userLocation: true
   });
 
-  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [showMapMenu, setShowMapMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Offline Map Tile Download & Cache States
@@ -1097,152 +1099,14 @@ export const GisMap: React.FC<GisMapProps> = ({
         </div>
       )}
 
-      {/* Top Map Controls with Clear Category Labels */}
-      <div
-        className={`absolute ${
-          emergencyModeActive ? 'top-14' : 'top-3'
-        } left-3 z-10 flex flex-col gap-1.5 max-w-[calc(100%-145px)] pointer-events-auto`}
-      >
-        {/* View Mode Row with VIEW label */}
-        <div className="flex items-center gap-1">
-          <div className="bg-black text-white px-1.5 py-1 text-[10px] font-mono font-black uppercase tracking-wider border-2 border-black shadow-[2px_2px_0px_#0a0a0a] shrink-0">
-            VIEW
-          </div>
-          <div
-            id="gis-layer-toggle-control"
-            className="flex items-center bg-white border-2 border-black shadow-[2px_2px_0px_#0a0a0a] p-0.5 gap-0.5"
-            role="group"
-            aria-label="Map Layer Control"
-          >
-            {(
-              [
-                { id: 'satellite', label: 'Satellite' as GisViewMode, display: 'Satellite', icon: Globe },
-                { id: 'roadmap', label: 'Road Map' as GisViewMode, display: 'Roads', icon: MapIcon },
-                { id: 'heatmap', label: 'Accessibility Heatmap' as GisViewMode, display: 'Heatmap', icon: Flame }
-              ]
-            ).map(({ id, label, display, icon: Icon }) => {
-              const isActive = activeView === label;
-              return (
-                <button
-                  key={id}
-                  id={`btn-layer-${id}`}
-                  type="button"
-                  onClick={() => setActiveView(label)}
-                  className={`flex items-center gap-1 px-2 py-1 text-[10px] sm:text-xs font-mono font-black uppercase transition-all whitespace-nowrap cursor-pointer ${
-                    isActive
-                      ? 'bg-[#0a0a0a] text-white shadow-[1px_1px_0px_#ff3e00]'
-                      : 'bg-transparent text-[#0a0a0a] hover:bg-neutral-100 hover:text-black'
-                  }`}
-                  title={`Switch to ${label} view`}
-                >
-                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#ff3e00]' : 'text-[#0a0a0a]'}`} />
-                  <span>{display}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Scope and Offline Row with SCOPE label */}
-        <div className="flex items-center gap-1 flex-wrap">
-          <div className="bg-black text-white px-1.5 py-1 text-[10px] font-mono font-black uppercase tracking-wider border-2 border-black shadow-[2px_2px_0px_#0a0a0a] shrink-0">
-            SCOPE
-          </div>
-          <div
-            id="gis-scope-control"
-            className="flex items-center bg-white border-2 border-black shadow-[2px_2px_0px_#0a0a0a] p-0.5 gap-0.5"
-            role="group"
-            aria-label="Map View Scope"
-          >
-            <button
-              type="button"
-              id="btn-scope-ner"
-              onClick={() => jumpToScope('ner')}
-              className={`px-2 py-1 text-[10px] sm:text-xs font-mono font-black uppercase transition-all cursor-pointer flex items-center gap-1 ${
-                activeScope === 'ner'
-                  ? 'bg-black text-white shadow-[1px_1px_0px_#ff3e00]'
-                  : 'bg-transparent text-black hover:bg-neutral-100'
-              }`}
-              title="Northeast India (NER) Focus"
-            >
-              <Compass className="w-3.5 h-3.5 text-[#ff3e00]" />
-              <span>NER</span>
-            </button>
-
-            <button
-              type="button"
-              id="btn-scope-india"
-              onClick={() => jumpToScope('india')}
-              className={`px-2 py-1 text-[10px] sm:text-xs font-mono font-black uppercase transition-all cursor-pointer flex items-center gap-1 ${
-                activeScope === 'india'
-                  ? 'bg-black text-white shadow-[1px_1px_0px_#ff3e00]'
-                  : 'bg-transparent text-black hover:bg-neutral-100'
-              }`}
-              title="All-India View"
-            >
-              <span>🇮🇳</span>
-              <span>India</span>
-            </button>
-
-            <button
-              type="button"
-              id="btn-scope-world"
-              onClick={() => jumpToScope('world')}
-              className={`px-2 py-1 text-[10px] sm:text-xs font-mono font-black uppercase transition-all cursor-pointer flex items-center gap-1 ${
-                activeScope === 'world'
-                  ? 'bg-black text-white shadow-[1px_1px_0px_#ff3e00]'
-                  : 'bg-transparent text-black hover:bg-neutral-100'
-              }`}
-              title="Complete World Map"
-            >
-              <Globe className="w-3.5 h-3.5 text-[#ff3e00]" />
-              <span>World</span>
-            </button>
-          </div>
-
-          {/* Download Offline Map Area Button */}
-          <button
-            id="btn-download-offline-map-area"
-            type="button"
-            onClick={() => setShowOfflineDownloadModal(true)}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] sm:text-xs font-mono font-black uppercase transition-all whitespace-nowrap cursor-pointer bg-white hover:bg-neutral-100 text-black border-2 border-black shadow-[2px_2px_0px_#0a0a0a]"
-            title="Download Offline Map Area (Cache Tiles for North Eastern Region)"
-          >
-            <Download className="w-3.5 h-3.5 text-[#ff3e00]" />
-            <span>Offline</span>
-            {offlinePackages.length > 0 && (
-              <span className="px-1 py-0.2 bg-emerald-500 text-black text-[9px] font-black border border-black">
-                {offlinePackages.length}
-              </span>
-            )}
-          </button>
-
-          {/* Quick Guwahati Location Shortcut Button */}
-          <button
-            id="btn-quick-guwahati"
-            type="button"
-            onClick={() => setPresetLocation('guwahati')}
-            className={`flex items-center gap-1 px-2 py-1 text-[10px] sm:text-xs font-mono font-black uppercase transition-all whitespace-nowrap cursor-pointer border-2 border-black shadow-[2px_2px_0px_#0a0a0a] ${
-              userLocation && userLocation.address?.includes('Guwahati')
-                ? 'bg-blue-600 text-white'
-                : 'bg-white hover:bg-neutral-100 text-black'
-            }`}
-            title="Jump to Guwahati Central Hub"
-          >
-            <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-            <span>Guwahati</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Offline Mode Active Banner */}
+      {/* Offline Mode Active Banner (Compact top-left) */}
       {(isOfflineSimulated || (typeof navigator !== 'undefined' && !navigator.onLine)) && (
-        <div className={`absolute ${emergencyModeActive ? 'top-20' : 'top-24 sm:top-16'} left-3 z-15 bg-amber-400 border-2 border-black px-2.5 py-1 flex items-center gap-2 text-black text-xs font-mono font-black shadow-[2px_2px_0px_#0a0a0a] animate-pulse`}>
+        <div className={`absolute ${emergencyModeActive ? 'top-14' : 'top-3'} left-3 z-15 bg-amber-400 border-2 border-black px-2.5 py-1 flex items-center gap-2 text-black text-xs font-mono font-black shadow-[2px_2px_0px_#0a0a0a] animate-pulse pointer-events-auto`}>
           <WifiOff className="w-3.5 h-3.5 text-black shrink-0" />
           <span className="hidden sm:inline">
-            {t.gis.offlineModeActive || 'Offline Mode: Serving Cached Tiles'}
+            {t.gis.offlineModeActive || 'Offline Mode: Cached Tiles'}
           </span>
-          <span className="inline sm:hidden">Offline Mode</span>
+          <span className="inline sm:hidden">Offline</span>
           <button
             type="button"
             onClick={() => setShowOfflineDownloadModal(true)}
@@ -1253,10 +1117,10 @@ export const GisMap: React.FC<GisMapProps> = ({
         </div>
       )}
 
-      {/* Map Control Overlay (Top-Right) - Fully Labeled & Structured */}
-      <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 items-end">
+      {/* Top-Right Corner Controls: LOCATE ME + 3-LINE MENU BUTTON */}
+      <div className={`absolute ${emergencyModeActive ? 'top-14' : 'top-3'} right-3 z-20 flex items-center gap-1.5 pointer-events-auto`}>
         {/* User Geolocation Action Button with Dropdown */}
-        <div className="relative w-full">
+        <div className="relative">
           <div className="flex items-stretch border-2 border-black shadow-[2px_2px_0px_#0a0a0a]">
             <button
               id="btn-my-location"
@@ -1268,7 +1132,7 @@ export const GisMap: React.FC<GisMapProps> = ({
                   locateUserViaGps();
                 }
               }}
-              className={`flex-1 px-2.5 py-1.5 transition-all flex items-center gap-1.5 text-xs font-black font-mono uppercase cursor-pointer ${
+              className={`px-2.5 py-1.5 transition-all flex items-center gap-1.5 text-xs font-black font-mono uppercase cursor-pointer ${
                 userLocation
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : isLocating
@@ -1286,11 +1150,12 @@ export const GisMap: React.FC<GisMapProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 setShowLocationMenu(!showLocationMenu);
+                setShowMapMenu(false);
               }}
               className={`px-1.5 border-l border-black flex items-center justify-center cursor-pointer ${
                 userLocation ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-neutral-100 hover:bg-neutral-200 text-black'
               }`}
-              title="Location presets menu"
+              title="Location options"
             >
               <span className="text-[10px] font-mono">▼</span>
             </button>
@@ -1300,7 +1165,7 @@ export const GisMap: React.FC<GisMapProps> = ({
           {showLocationMenu && (
             <div className="absolute top-full right-0 mt-1 w-64 bg-white border-2 border-black shadow-[4px_4px_0px_#0a0a0a] z-40 p-2 text-xs font-mono text-black space-y-1.5">
               <div className="font-black uppercase text-[10px] text-neutral-500 border-b border-neutral-200 pb-1 flex items-center justify-between">
-                <span>Location Access & Presets</span>
+                <span>Location Access</span>
                 <button
                   type="button"
                   onClick={() => setShowLocationMenu(false)}
@@ -1327,18 +1192,8 @@ export const GisMap: React.FC<GisMapProps> = ({
               </button>
 
               <div className="text-[9px] font-black uppercase text-neutral-500 pt-1 border-t border-neutral-100">
-                City Hub Presets:
+                Regional Presets:
               </div>
-
-              <button
-                type="button"
-                id="btn-preset-guwahati"
-                onClick={() => setPresetLocation('guwahati')}
-                className="w-full text-left px-2 py-1 hover:bg-neutral-100 border border-neutral-200 font-medium flex items-center justify-between cursor-pointer"
-              >
-                <span className="font-bold">📍 Guwahati (NER Hub)</span>
-                <span className="text-[9px] text-neutral-500 font-mono">Assam</span>
-              </button>
 
               <button
                 type="button"
@@ -1383,161 +1238,298 @@ export const GisMap: React.FC<GisMapProps> = ({
           )}
         </div>
 
-        {onOpenNewsRadar && (
+        {/* 3-Line Menu Button */}
+        <div className="relative">
           <button
-            id="btn-open-news-radar"
+            id="btn-gis-3line-menu"
             type="button"
-            onClick={onOpenNewsRadar}
-            className="w-full px-2.5 py-1.5 border-2 border-black bg-white hover:bg-neutral-100 text-black shadow-[2px_2px_0px_#0a0a0a] transition-all flex items-center justify-between gap-2 text-xs font-black font-mono uppercase cursor-pointer"
-            title="Open Live News & Disaster Disruption Radar"
+            onClick={() => {
+              setShowMapMenu(!showMapMenu);
+              setShowLocationMenu(false);
+            }}
+            className={`px-2.5 py-1.5 border-2 border-black shadow-[2px_2px_0px_#0a0a0a] transition-all flex items-center gap-1.5 text-xs font-black font-mono uppercase cursor-pointer ${
+              showMapMenu
+                ? 'bg-black text-white shadow-[2px_2px_0px_#ff3e00]'
+                : 'bg-white hover:bg-neutral-100 text-black'
+            }`}
+            title="Map Controls & GIS Layers Menu"
+            aria-expanded={showMapMenu}
           >
-            <div className="flex items-center gap-1.5">
-              <Newspaper className="w-4 h-4 text-[#ff3e00] shrink-0" />
-              <span>News Radar</span>
-            </div>
-            {activeNewsDisruptionsCount > 0 && (
-              <span className="px-1.5 py-0.2 bg-red-600 text-white text-[10px] font-black border border-black">
-                {activeNewsDisruptionsCount}
-              </span>
+            <Menu className={`w-4 h-4 shrink-0 ${showMapMenu ? 'text-[#ff3e00]' : 'text-black'}`} />
+            <span className="hidden sm:inline font-mono font-black">MENU</span>
+            {(activeNewsDisruptionsCount > 0 || offlinePackages.length > 0) && (
+              <span className="w-2 h-2 rounded-full bg-[#ff3e00] animate-pulse"></span>
             )}
           </button>
-        )}
-
-        <button
-          id="btn-map-filter"
-          onClick={() => setShowFilterDrawer(!showFilterDrawer)}
-          className={`w-full px-2.5 py-1.5 border-2 border-black shadow-[2px_2px_0px_#0a0a0a] transition-all flex items-center gap-1.5 text-xs font-black font-mono uppercase cursor-pointer ${
-            showFilterDrawer
-              ? 'bg-[#0a0a0a] text-white'
-              : 'bg-white text-black hover:bg-neutral-100'
-          }`}
-          title={t.gis.layerControls}
-        >
-          <Filter className="w-3.5 h-3.5 shrink-0" />
-          <span>GIS Layers</span>
-        </button>
-
-        <button
-          id="btn-map-reset"
-          onClick={resetView}
-          className="w-full px-2.5 py-1.5 border-2 border-black bg-white hover:bg-neutral-100 text-black shadow-[2px_2px_0px_#0a0a0a] transition-colors flex items-center gap-1.5 text-xs font-black font-mono uppercase cursor-pointer"
-          title="Reset to Northeast Regional Hub View"
-        >
-          <Compass className="w-4 h-4 text-[#ff3e00] shrink-0" />
-          <span>Reset NER</span>
-        </button>
-
-        <button
-          id="btn-map-fullscreen"
-          onClick={toggleFullscreen}
-          className="w-full px-2.5 py-1.5 border-2 border-black bg-white hover:bg-neutral-100 text-black shadow-[2px_2px_0px_#0a0a0a] transition-colors flex items-center gap-1.5 text-xs font-black font-mono uppercase cursor-pointer"
-          title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen View'}
-        >
-          {isFullscreen ? (
-            <>
-              <Minimize2 className="w-4 h-4 shrink-0" />
-              <span>Exit Full</span>
-            </>
-          ) : (
-            <>
-              <Maximize2 className="w-4 h-4 text-black shrink-0" />
-              <span>Fullscreen</span>
-            </>
-          )}
-        </button>
+        </div>
       </div>
 
-      {/* Filter & Layer Selection Drawer */}
-      {showFilterDrawer && (
-        <div className="absolute top-3 right-3 z-30 w-72 max-w-[calc(100%-24px)] bg-white border-2 border-black p-4 shadow-[4px_4px_0px_#0a0a0a] text-xs font-mono space-y-3 text-[#0a0a0a]">
+      {/* 3-Line Menu Popover (All Map Controls Organized in Order) */}
+      {showMapMenu && (
+        <div
+          id="gis-map-menu-dropdown"
+          className="absolute top-12 right-3 z-30 w-80 max-w-[calc(100%-24px)] max-h-[calc(100%-60px)] overflow-y-auto bg-white border-2 border-black p-3.5 shadow-[4px_4px_0px_#0a0a0a] text-xs font-mono text-black space-y-3.5 pointer-events-auto"
+        >
+          {/* Header */}
           <div className="flex items-center justify-between border-b-2 border-black pb-2">
-            <span className="font-black uppercase tracking-wider text-[#0a0a0a] flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#ff3e00]" /> {t.gis.layerControls}
-            </span>
+            <div className="flex items-center gap-2 font-black uppercase text-xs">
+              <Menu className="w-4 h-4 text-[#ff3e00]" />
+              <span>Map Controls & Tools</span>
+            </div>
             <button
-              onClick={() => setShowFilterDrawer(false)}
-              className="text-black hover:text-[#ff3e00] font-black text-sm"
+              type="button"
+              id="btn-close-map-menu"
+              onClick={() => setShowMapMenu(false)}
+              className="text-neutral-500 hover:text-black font-black text-sm p-0.5 cursor-pointer"
+              title="Close Menu"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Quick View Layer Selection inside Drawer */}
-          <div className="border-b-2 border-neutral-200 pb-2.5">
-            <span className="text-[10px] font-black uppercase text-neutral-500 block mb-1.5">
-              Base View Mode
-            </span>
-            <div className="grid grid-cols-3 gap-1">
-              {(['Satellite', 'Road Map', 'Accessibility Heatmap'] as const).map((mode) => (
+          {/* 1. VIEW MODE (Satellite | Roads | Heatmap) */}
+          <div>
+            <div className="text-[10px] font-black uppercase text-neutral-600 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1 font-black text-black">
+                <span>VIEW</span>
+              </span>
+              <span className="text-[9px] text-neutral-400 uppercase">Basemap Layer</span>
+            </div>
+            <div
+              id="gis-layer-toggle-control"
+              className="grid grid-cols-3 gap-1 bg-[#f4f4f4] p-1 border-2 border-black"
+              role="group"
+              aria-label="Map Layer Control"
+            >
+              {[
+                { id: 'satellite', label: 'Satellite' as GisViewMode, display: 'Satellite', icon: Globe },
+                { id: 'roadmap', label: 'Road Map' as GisViewMode, display: 'Roads', icon: MapIcon },
+                { id: 'heatmap', label: 'Accessibility Heatmap' as GisViewMode, display: 'Heatmap', icon: Flame }
+              ].map(({ id, label, display, icon: Icon }) => {
+                const isActive = activeView === label;
+                return (
+                  <button
+                    key={id}
+                    id={`btn-layer-${id}`}
+                    type="button"
+                    onClick={() => setActiveView(label)}
+                    className={`flex items-center justify-center gap-1 py-1.5 text-[10px] sm:text-xs font-mono font-black uppercase transition-all cursor-pointer border ${
+                      isActive
+                        ? 'bg-[#0a0a0a] text-white border-black shadow-[1px_1px_0px_#ff3e00]'
+                        : 'bg-white text-[#0a0a0a] hover:bg-neutral-100 border-neutral-300'
+                    }`}
+                    title={`Switch to ${label} view`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#ff3e00]' : 'text-neutral-700'}`} />
+                    <span>{display}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 2. MAP SCOPE (NER | India | World) */}
+          <div>
+            <div className="text-[10px] font-black uppercase text-neutral-600 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1 font-black text-black">
+                <span>SCOPE</span>
+              </span>
+              <span className="text-[9px] text-neutral-400 uppercase">Geographic Region</span>
+            </div>
+            <div
+              id="gis-scope-control"
+              className="grid grid-cols-3 gap-1 bg-[#f4f4f4] p-1 border-2 border-black"
+              role="group"
+              aria-label="Map View Scope"
+            >
+              <button
+                type="button"
+                id="btn-scope-ner"
+                onClick={() => jumpToScope('ner')}
+                className={`flex items-center justify-center gap-1 py-1.5 text-[10px] sm:text-xs font-mono font-black uppercase transition-all cursor-pointer border ${
+                  activeScope === 'ner'
+                    ? 'bg-black text-white border-black shadow-[1px_1px_0px_#ff3e00]'
+                    : 'bg-white text-black hover:bg-neutral-100 border-neutral-300'
+                }`}
+                title="Northeast India (NER) Focus"
+              >
+                <Compass className="w-3.5 h-3.5 text-[#ff3e00]" />
+                <span>NER</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-scope-india"
+                onClick={() => jumpToScope('india')}
+                className={`flex items-center justify-center gap-1 py-1.5 text-[10px] sm:text-xs font-mono font-black uppercase transition-all cursor-pointer border ${
+                  activeScope === 'india'
+                    ? 'bg-black text-white border-black shadow-[1px_1px_0px_#ff3e00]'
+                    : 'bg-white text-black hover:bg-neutral-100 border-neutral-300'
+                }`}
+                title="All-India View"
+              >
+                <span>🇮🇳</span>
+                <span>India</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-scope-world"
+                onClick={() => jumpToScope('world')}
+                className={`flex items-center justify-center gap-1 py-1.5 text-[10px] sm:text-xs font-mono font-black uppercase transition-all cursor-pointer border ${
+                  activeScope === 'world'
+                    ? 'bg-black text-white border-black shadow-[1px_1px_0px_#ff3e00]'
+                    : 'bg-white text-black hover:bg-neutral-100 border-neutral-300'
+                }`}
+                title="Complete World Map"
+              >
+                <Globe className="w-3.5 h-3.5 text-[#ff3e00]" />
+                <span>World</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 3. QUICK TOOLS (Offline | News Radar | Reset NER | Fullscreen) */}
+          <div>
+            <div className="text-[10px] font-black uppercase text-neutral-600 mb-1">
+              <span className="font-black text-black">QUICK TOOLS</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {/* Offline Pack Button */}
+              <button
+                id="btn-download-offline-map-area"
+                type="button"
+                onClick={() => {
+                  setShowOfflineDownloadModal(true);
+                  setShowMapMenu(false);
+                }}
+                className="flex items-center justify-between px-2 py-2 text-[11px] font-mono font-black uppercase bg-white hover:bg-neutral-100 text-black border-2 border-black shadow-[2px_2px_0px_#0a0a0a] cursor-pointer"
+                title="Download Offline Map Tiles"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Download className="w-3.5 h-3.5 text-[#ff3e00] shrink-0" />
+                  <span>Offline</span>
+                </div>
+                {offlinePackages.length > 0 && (
+                  <span className="px-1 py-0.2 bg-emerald-500 text-black text-[9px] font-black border border-black">
+                    {offlinePackages.length}
+                  </span>
+                )}
+              </button>
+
+              {/* News Radar Button */}
+              {onOpenNewsRadar ? (
                 <button
-                  key={mode}
+                  id="btn-open-news-radar"
                   type="button"
-                  onClick={() => setActiveView(mode)}
-                  className={`px-1.5 py-1 text-[10px] font-mono font-bold uppercase border border-black transition-colors ${
-                    activeView === mode
-                      ? 'bg-black text-white'
-                      : 'bg-neutral-100 hover:bg-neutral-200 text-black'
-                  }`}
+                  onClick={() => {
+                    onOpenNewsRadar();
+                    setShowMapMenu(false);
+                  }}
+                  className="flex items-center justify-between px-2 py-2 text-[11px] font-mono font-black uppercase bg-white hover:bg-neutral-100 text-black border-2 border-black shadow-[2px_2px_0px_#0a0a0a] cursor-pointer"
+                  title="Open Live News & Disaster Disruption Radar"
                 >
-                  {mode === 'Accessibility Heatmap' ? 'Heatmap' : mode}
+                  <div className="flex items-center gap-1.5">
+                    <Newspaper className="w-3.5 h-3.5 text-[#ff3e00] shrink-0" />
+                    <span>News Radar</span>
+                  </div>
+                  {activeNewsDisruptionsCount > 0 && (
+                    <span className="px-1 py-0.2 bg-red-600 text-white text-[9px] font-black border border-black">
+                      {activeNewsDisruptionsCount}
+                    </span>
+                  )}
                 </button>
+              ) : (
+                <div />
+              )}
+
+              {/* Reset NER Button */}
+              <button
+                id="btn-map-reset"
+                type="button"
+                onClick={resetView}
+                className="flex items-center gap-1.5 px-2 py-2 text-[11px] font-mono font-black uppercase bg-white hover:bg-neutral-100 text-black border-2 border-black shadow-[2px_2px_0px_#0a0a0a] cursor-pointer"
+                title="Reset to Northeast Regional Hub View"
+              >
+                <Compass className="w-3.5 h-3.5 text-[#ff3e00] shrink-0" />
+                <span>Reset NER</span>
+              </button>
+
+              {/* Fullscreen Button */}
+              <button
+                id="btn-map-fullscreen"
+                type="button"
+                onClick={toggleFullscreen}
+                className="flex items-center gap-1.5 px-2 py-2 text-[11px] font-mono font-black uppercase bg-white hover:bg-neutral-100 text-black border-2 border-black shadow-[2px_2px_0px_#0a0a0a] cursor-pointer"
+                title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen View'}
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Exit Full</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="w-3.5 h-3.5 text-black shrink-0" />
+                    <span>Fullscreen</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* 4. GIS LAYERS */}
+          <div className="border-t-2 border-neutral-200 pt-2.5">
+            <div className="text-[10px] font-black uppercase text-neutral-600 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-black text-black">
+                <Filter className="w-3.5 h-3.5 text-[#ff3e00]" />
+                <span>GIS LAYERS</span>
+              </span>
+              <span className="text-[9px] text-neutral-400 uppercase">Feature Filters</span>
+            </div>
+            <div className="space-y-1">
+              {[
+                { key: 'roads', label: 'Road Corridors', color: 'bg-emerald-600' },
+                { key: 'vehicles', label: 'Active Fleet', color: 'bg-[#ff3e00]' },
+                { key: 'incidents', label: 'Hazard Incidents', color: 'bg-black' },
+                { key: 'newsAlerts', label: 'News Road Disruptions', color: 'bg-red-600' },
+                { key: 'hospitals', label: 'Hospitals & Hubs', color: 'bg-blue-600' },
+                { key: 'userLocation', label: 'User GPS Location', color: 'bg-blue-500' }
+              ].map(({ key, label, color }) => (
+                <label
+                  key={key}
+                  className="flex items-center justify-between p-1.5 border border-black bg-[#f4f4f4] hover:bg-neutral-100 cursor-pointer text-[#0a0a0a] font-bold uppercase text-[10px]"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 border border-black ${color}`} />
+                    <span>{label}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={(filters as any)[key]}
+                    onChange={(e) => setFilters({ ...filters, [key]: e.target.checked })}
+                    className="rounded-none border-2 border-black text-black focus:ring-0 cursor-pointer"
+                  />
+                </label>
               ))}
             </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-black uppercase text-neutral-500 block mb-1">
-              Visible Elements
-            </span>
-            {[
-              { key: 'roads', label: 'Road Corridors', color: 'bg-emerald-600' },
-              { key: 'vehicles', label: 'Active Fleet', color: 'bg-[#ff3e00]' },
-              { key: 'incidents', label: 'Hazard Incidents', color: 'bg-black' },
-              { key: 'newsAlerts', label: 'News Road Disruptions', color: 'bg-red-600' },
-              { key: 'hospitals', label: 'Hospitals & Hubs', color: 'bg-blue-600' },
-              { key: 'userLocation', label: 'User GPS Location', color: 'bg-blue-500' }
-            ].map(({ key, label, color }) => (
-              <label
-                key={key}
-                className="flex items-center justify-between p-1.5 border border-black bg-[#f4f4f4] hover:bg-neutral-100 cursor-pointer text-[#0a0a0a] font-bold uppercase text-[11px]"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 border border-black ${color}`} />
-                  <span>{label}</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={(filters as any)[key]}
-                  onChange={(e) => setFilters({ ...filters, [key]: e.target.checked })}
-                  className="rounded-none border-2 border-black text-black focus:ring-0 cursor-pointer"
-                />
-              </label>
-            ))}
-          </div>
-
-          {/* Offline Area Cache Section in Drawer */}
-          <div className="border-t-2 border-neutral-200 pt-2.5 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase text-neutral-500 flex items-center gap-1">
-                <HardDrive className="w-3 h-3 text-[#ff3e00]" /> Offline Tile Cache
+            {/* Offline Area Cache Quick Summary */}
+            <div className="mt-2 pt-2 border-t border-neutral-200 flex items-center justify-between text-[10px] text-neutral-600">
+              <span className="flex items-center gap-1">
+                <HardDrive className="w-3 h-3 text-[#ff3e00]" /> Cached: {storageInfo.formattedSize}
               </span>
-              <span className="text-[10px] font-bold text-emerald-600">{storageInfo.formattedSize}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMapMenu(false);
+                  setShowOfflineDownloadModal(true);
+                }}
+                className="font-black text-black underline uppercase hover:text-[#ff3e00] cursor-pointer"
+              >
+                Manage Tiles
+              </button>
             </div>
-            <div className="text-[11px] text-neutral-600">
-              {offlinePackages.length} North Eastern state {offlinePackages.length === 1 ? 'area' : 'areas'} cached
-            </div>
-            <button
-              id="btn-drawer-download-offline-area"
-              type="button"
-              onClick={() => {
-                setShowFilterDrawer(false);
-                setShowOfflineDownloadModal(true);
-              }}
-              className="w-full py-1.5 bg-black hover:bg-neutral-800 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border border-black shadow-[2px_2px_0px_#ff3e00] cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-[#ff3e00]" />
-              <span>{t.gis.downloadOfflineArea || 'Download Offline Area'}</span>
-            </button>
           </div>
         </div>
       )}

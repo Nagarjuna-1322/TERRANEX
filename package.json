@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "vercel-build": "vite build",
     "build:client": "vite build",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
@@ -16,6 +17,9 @@
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/leaflet": "^1.9.22",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/node": "^13.0.0",
+    "@vercel/speed-insights": "^2.0.0",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "esbuild": "^0.25.0",

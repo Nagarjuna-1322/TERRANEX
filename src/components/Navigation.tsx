@@ -240,8 +240,8 @@ export const TopNavigation: React.FC<NavigationProps> = ({
           >
             {isWideLayout ? (
               <>
-                <Minimize2 className="w-3.5 h-3.5 text-[#ff3e00]" />
-                <span>Mobile</span>
+                <Minimize2 className="w-3.5 h-3.5 text-neutral-800" />
+                <span>Compact</span>
               </>
             ) : (
               <>
@@ -393,11 +393,6 @@ export const BottomNavigation: React.FC<NavigationProps> = ({
           );
         })}
       </nav>
-
-      {/* Smartphone Bottom Home Indicator Bar */}
-      <div className="w-full pb-1.5 pt-1 flex justify-center items-center bg-white border-t border-neutral-100">
-        <div className="w-28 h-1 bg-neutral-950/30 rounded-full" />
-      </div>
     </div>
   );
 };

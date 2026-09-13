@@ -9,7 +9,6 @@ import { OfflineSyncService } from './services/offlineSync';
 // Components
 import { SplashScreen, LoginScreen, OnboardingScreen } from './components/AuthScreens';
 import { TopNavigation, BottomNavigation } from './components/Navigation';
-import { MobileStatusBar } from './components/MobileStatusBar';
 import { AuthorityDashboard } from './components/AuthorityDashboard';
 import { FieldOfficerHome } from './components/FieldOfficerHome';
 import { DriverDashboard } from './components/DriverDashboard';
@@ -341,19 +340,8 @@ export default function App() {
   const unreadAlertCount = alerts.filter((a) => !a.acknowledged).length;
 
   return (
-    <div className="min-h-screen bg-[#0b0c10] flex justify-center items-center sm:p-3 selection:bg-[#ff3e00] selection:text-white">
-      {/* Mobile Smartphone Frame Chassis */}
-      <div
-        className={`w-full ${
-          isWideLayout
-            ? 'max-w-6xl sm:rounded-[28px] sm:border-4 sm:border-neutral-900'
-            : 'max-w-[430px] sm:h-[92vh] sm:max-h-[915px] sm:rounded-[48px] sm:border-[10px] sm:border-neutral-900 sm:ring-4 sm:ring-neutral-800/90'
-        } min-h-screen sm:min-h-[820px] bg-[#f8f9fa] text-[#0a0a0a] flex flex-col font-sans shadow-[0_25px_80px_rgba(0,0,0,0.85)] border-0 overflow-hidden relative transition-all duration-300`}
-      >
-        {/* Mobile Device Status Bar */}
-        <MobileStatusBar isOnline={isOnline} />
-
-        {/* Top Header Navigation with Prominent Language Switcher */}
+    <div className="min-h-screen w-full bg-[#f8f9fa] text-[#0a0a0a] flex flex-col font-sans selection:bg-[#ff3e00] selection:text-white relative">
+      {/* Top Header Navigation with Prominent Language Switcher */}
         <TopNavigation
           currentUser={currentUser}
           currentTab={activeTab}
@@ -831,7 +819,6 @@ export default function App() {
           setShowDemoController(true);
         }}
       />
-      </div>
     </div>
   );
 }

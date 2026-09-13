@@ -275,3 +275,12 @@ export interface NewsAnalysisResult {
   newStatus?: RoadStatus;
 }
 
+export interface UserLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  timestamp: number;
+  address?: string;
+  source: 'gps' | 'preset';
+}
+

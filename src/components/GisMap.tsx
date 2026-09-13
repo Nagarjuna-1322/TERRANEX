@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Road, Vehicle, Incident, NewsArticle } from '../types';
+import { Road, Vehicle, Incident, NewsArticle, UserLocation } from '../types';
 import { Language, TRANSLATIONS, getLocalizedHighwayName } from '../translations';
 import {
   Layers,
@@ -22,7 +22,11 @@ import {
   Download,
   HardDrive,
   WifiOff,
-  Wifi
+  Wifi,
+  Crosshair,
+  MapPin,
+  Locate,
+  Navigation
 } from 'lucide-react';
 import { DownloadOfflineMapModal } from './DownloadOfflineMapModal';
 import {
@@ -105,10 +109,19 @@ export const GisMap: React.FC<GisMapProps> = ({
   const roadLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const markerLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const newsLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const userLocationLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
   const [activeView, setActiveView] = useState<GisViewMode>(initialViewMode);
   const [activeScope, setActiveScope] = useState<MapViewScope>('ner');
   const [mapReady, setMapReady] = useState<boolean>(false);
+
+  // User Geolocation States
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [showLocationMenu, setShowLocationMenu] = useState<boolean>(false);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [isLiveWatching, setIsLiveWatching] = useState<boolean>(false);
+  const geoWatchIdRef = useRef<number | null>(null);
 
   const currentLang: Language = (lang as Language) || ('en' as Language);
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
@@ -121,7 +134,8 @@ export const GisMap: React.FC<GisMapProps> = ({
     weatherAlerts: true,
     hospitals: true,
     reliefCenters: true,
-    bridges: true
+    bridges: true,
+    userLocation: true
   });
 
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
@@ -202,11 +216,12 @@ export const GisMap: React.FC<GisMapProps> = ({
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // Create layer groups in order: heatmap underneath roads, markers, and news disruptions
+    // Create layer groups in order: heatmap underneath roads, markers, news disruptions, and user location on top
     heatmapLayerGroupRef.current = L.layerGroup().addTo(map);
     roadLayerGroupRef.current = L.layerGroup().addTo(map);
     markerLayerGroupRef.current = L.layerGroup().addTo(map);
     newsLayerGroupRef.current = L.layerGroup().addTo(map);
+    userLocationLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
     setMapReady(true);
@@ -230,12 +245,17 @@ export const GisMap: React.FC<GisMapProps> = ({
       clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       setMapReady(false);
+      if (geoWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        geoWatchIdRef.current = null;
+      }
       try {
         map.remove();
       } catch (e) {
         // ignore if already removed
       }
       mapInstanceRef.current = null;
+      userLocationLayerGroupRef.current = null;
       if (mapContainerRef.current && (mapContainerRef.current as any)._leaflet_id) {
         delete (mapContainerRef.current as any)._leaflet_id;
       }
@@ -732,6 +752,300 @@ export const GisMap: React.FC<GisMapProps> = ({
     onOpenNewsRadar
   ]);
 
+  // ----------------------------------------------------
+  // Helper: Haversine distance in KM
+  // ----------------------------------------------------
+  const calculateDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Number((R * c).toFixed(1));
+  };
+
+  // ----------------------------------------------------
+  // Helper: Match or approximate location to named regions
+  // ----------------------------------------------------
+  const getApproximatePlaceName = (lat: number, lng: number): string => {
+    const landmarks = [
+      { name: 'Guwahati (NER Central Logistics Hub), Assam', lat: 26.1445, lng: 91.7362, radius: 0.35 },
+      { name: 'Dispur (Capital Complex), Assam', lat: 26.1408, lng: 91.7904, radius: 0.15 },
+      { name: 'Jalukbari Inter-State Terminal, Guwahati', lat: 26.155, lng: 91.662, radius: 0.2 },
+      { name: 'Khanapara (Assam-Meghalaya Gateway)', lat: 26.113, lng: 91.821, radius: 0.2 },
+      { name: 'Shillong Logistics Depot, Meghalaya', lat: 25.5788, lng: 91.8933, radius: 0.3 },
+      { name: 'Tawang Strategic Base, Arunachal Pradesh', lat: 27.586, lng: 91.86, radius: 0.3 },
+      { name: 'Bhalukpong Checkpost, Arunachal Pradesh', lat: 27.014, lng: 92.645, radius: 0.25 },
+      { name: 'Bomdila Mountain Corridor, Arunachal', lat: 27.264, lng: 92.422, radius: 0.25 },
+      { name: 'Itanagar Administrative Hub, Arunachal', lat: 27.0844, lng: 93.6053, radius: 0.3 },
+      { name: 'Tezpur Transit Depot, Assam', lat: 26.6528, lng: 92.7926, radius: 0.3 },
+      { name: 'Silchar Distribution Center, Assam', lat: 24.8333, lng: 92.7789, radius: 0.3 },
+      { name: 'Kohima District Center, Nagaland', lat: 25.6751, lng: 94.1086, radius: 0.3 },
+      { name: 'Dimapur Freight Railhead, Nagaland', lat: 25.9095, lng: 93.7266, radius: 0.3 },
+      { name: 'Imphal Valley Relief Hub, Manipur', lat: 24.817, lng: 93.9368, radius: 0.3 },
+      { name: 'Aizawl Regional Depot, Mizoram', lat: 23.7271, lng: 92.7176, radius: 0.3 },
+      { name: 'Agartala Border Center, Tripura', lat: 23.8315, lng: 91.2868, radius: 0.3 },
+      { name: 'Gangtok Mountain Hub, Sikkim', lat: 27.3389, lng: 88.6065, radius: 0.3 }
+    ];
+
+    for (const place of landmarks) {
+      const dLat = Math.abs(lat - place.lat);
+      const dLng = Math.abs(lng - place.lng);
+      const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+      if (dist <= place.radius) {
+        return place.name;
+      }
+    }
+
+    if (lat >= 24 && lat <= 29 && lng >= 89 && lng <= 97) {
+      return `North Eastern Region (${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E)`;
+    }
+    return `Location (${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E)`;
+  };
+
+  // ----------------------------------------------------
+  // Presets & Geolocation Handlers
+  // ----------------------------------------------------
+  const setPresetLocation = (key: 'guwahati' | 'dispur' | 'tawang' | 'shillong' | 'itanagar') => {
+    const presets: Record<string, { lat: number; lng: number; name: string }> = {
+      guwahati: { lat: 26.1445, lng: 91.7362, name: 'Guwahati Metro, Assam (NER Hub)' },
+      dispur: { lat: 26.1408, lng: 91.7904, name: 'Dispur Capital Complex, Assam' },
+      tawang: { lat: 27.586, lng: 91.86, name: 'Tawang Logistics Depot, Arunachal Pradesh' },
+      shillong: { lat: 25.5788, lng: 91.8933, name: 'Shillong Tactical Hub, Meghalaya' },
+      itanagar: { lat: 27.0844, lng: 93.6053, name: 'Itanagar Civil Center, Arunachal Pradesh' }
+    };
+    const target = presets[key] || presets.guwahati;
+    const loc: UserLocation = {
+      lat: target.lat,
+      lng: target.lng,
+      accuracy: 15,
+      timestamp: Date.now(),
+      address: target.name,
+      source: 'preset'
+    };
+    setUserLocation(loc);
+    setShowLocationMenu(false);
+    setLocationMessage(`📍 Location set to: ${target.name}`);
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([target.lat, target.lng], 14, { duration: 1.2 });
+    }
+    setTimeout(() => setLocationMessage(null), 4000);
+  };
+
+  const locateUserViaGps = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setLocationMessage('Geolocation is not supported by this browser. Showing Guwahati Hub.');
+      setPresetLocation('guwahati');
+      setTimeout(() => setLocationMessage(null), 4000);
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationMessage('Acquiring high-precision GPS coordinates...');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const accuracy = Math.round(pos.coords.accuracy || 20);
+        const placeName = getApproximatePlaceName(lat, lng);
+
+        const loc: UserLocation = {
+          lat,
+          lng,
+          accuracy,
+          timestamp: pos.timestamp || Date.now(),
+          address: placeName,
+          source: 'gps'
+        };
+
+        setUserLocation(loc);
+        setIsLocating(false);
+        setLocationMessage(`📍 GPS Located: ${placeName} (±${accuracy}m)`);
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([lat, lng], 14, { duration: 1.2 });
+        }
+
+        setTimeout(() => setLocationMessage(null), 4500);
+      },
+      (err) => {
+        setIsLocating(false);
+        console.warn('Geolocation notice:', err.message);
+        let notice = 'Could not acquire GPS position. Displaying Guwahati Hub.';
+        if (err.code === 1) {
+          notice = 'Location permission denied. Showing Guwahati Hub (Assam).';
+        } else if (err.code === 2) {
+          notice = 'GPS position unavailable. Showing Guwahati Hub (Assam).';
+        } else if (err.code === 3) {
+          notice = 'GPS timeout. Showing Guwahati Hub (Assam).';
+        }
+        setLocationMessage(notice);
+        // Automatic fallback to Guwahati as requested
+        setPresetLocation('guwahati');
+        setTimeout(() => setLocationMessage(null), 5000);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
+  const toggleLiveTracking = () => {
+    if (isLiveWatching) {
+      if (geoWatchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        geoWatchIdRef.current = null;
+      }
+      setIsLiveWatching(false);
+      setLocationMessage('Live location tracking paused.');
+      setTimeout(() => setLocationMessage(null), 3000);
+    } else {
+      if (!navigator.geolocation) {
+        setLocationMessage('Geolocation not supported by browser.');
+        setTimeout(() => setLocationMessage(null), 3000);
+        return;
+      }
+      setIsLiveWatching(true);
+      setLocationMessage('Live GPS tracking enabled.');
+      setTimeout(() => setLocationMessage(null), 3000);
+      geoWatchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const accuracy = Math.round(pos.coords.accuracy || 20);
+          const placeName = getApproximatePlaceName(lat, lng);
+          setUserLocation({
+            lat,
+            lng,
+            accuracy,
+            timestamp: pos.timestamp || Date.now(),
+            address: placeName,
+            source: 'gps'
+          });
+        },
+        (err) => {
+          console.warn('Watch position notice:', err.message);
+          setIsLiveWatching(false);
+        },
+        { enableHighAccuracy: true, maximumAge: 5000 }
+      );
+    }
+  };
+
+  // ----------------------------------------------------
+  // Render User Location Layer on Map
+  // ----------------------------------------------------
+  useEffect(() => {
+    const layer = userLocationLayerGroupRef.current;
+    if (!layer || !mapInstanceRef.current) return;
+    layer.clearLayers();
+
+    if (!userLocation || !filters.userLocation) return;
+
+    const { lat, lng, accuracy, address, source, timestamp } = userLocation;
+
+    // 1. Accuracy Circle with animated radar boundary
+    const circle = L.circle([lat, lng], {
+      radius: Math.max(accuracy, 25),
+      color: '#2563eb',
+      fillColor: '#3b82f6',
+      fillOpacity: 0.15,
+      weight: 2,
+      dashArray: '4, 4'
+    });
+    layer.addLayer(circle);
+
+    // 2. High-visibility Tactical Marker with glowing radar rings
+    const iconHtml = `
+      <div class="relative flex items-center justify-center cursor-pointer group" style="width: 36px; height: 36px;">
+        <div class="absolute -inset-3 rounded-full bg-blue-500/25 animate-ping pointer-events-none"></div>
+        <div class="absolute -inset-1 rounded-full bg-blue-600/40 animate-pulse pointer-events-none"></div>
+        <div class="relative w-8 h-8 rounded-full border-2 border-white bg-blue-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.9)] font-black">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="7" stroke-width="2.5" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+          </svg>
+          <div class="absolute w-2 h-2 rounded-full bg-cyan-300 ring-1 ring-blue-800"></div>
+        </div>
+        <div class="absolute -bottom-5 bg-black/95 text-white font-mono text-[9px] font-black uppercase px-2 py-0.5 border border-blue-400 whitespace-nowrap shadow-md flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+          YOU ARE HERE
+        </div>
+      </div>
+    `;
+
+    const icon = L.divIcon({
+      html: iconHtml,
+      className: 'custom-user-location-marker',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    });
+
+    const marker = L.marker([lat, lng], { icon, zIndexOffset: 1500 });
+
+    // Calculate proximity to key logistical assets
+    let nearestRoadStr = 'Corridor Grid';
+    let minRoadDist = Infinity;
+    roads.forEach((r) => {
+      if (r.coordinates && r.coordinates.length > 0) {
+        r.coordinates.forEach(([cLat, cLng]) => {
+          const d = calculateDistanceKm(lat, lng, cLat, cLng);
+          if (d < minRoadDist) {
+            minRoadDist = d;
+            nearestRoadStr = `${r.code} (${r.name}) • ${d} km away`;
+          }
+        });
+      }
+    });
+
+    let nearestVehicleStr = 'No active vehicles nearby';
+    let minVehDist = Infinity;
+    vehicles.forEach((v) => {
+      const d = calculateDistanceKm(lat, lng, v.currentLocation.lat, v.currentLocation.lng);
+      if (d < minVehDist) {
+        minVehDist = d;
+        nearestVehicleStr = `${v.vehicleNumber} (${v.type}) • ${d} km away`;
+      }
+    });
+
+    marker.bindTooltip(
+      `<div class="p-3 bg-black border-2 border-blue-500 text-white font-mono text-xs max-w-xs shadow-2xl">
+        <div class="flex items-center justify-between gap-2 border-b border-neutral-700 pb-1.5 mb-2">
+          <span class="text-cyan-400 font-black uppercase text-[11px] flex items-center gap-1">
+            📍 YOUR CURRENT LOCATION
+          </span>
+          <span class="px-1.5 py-0.5 ${source === 'gps' ? 'bg-blue-600' : 'bg-emerald-600'} text-white font-black text-[9px] uppercase">
+            ${source === 'gps' ? 'LIVE GPS' : 'PRESET'}
+          </span>
+        </div>
+        <div class="font-bold text-white text-xs mb-1.5">${address || 'Detected Position'}</div>
+        <div class="text-neutral-300 text-[11px] space-y-1 mb-2 font-mono">
+          <div><strong>Coordinates:</strong> ${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E</div>
+          <div><strong>GPS Accuracy:</strong> ±${accuracy} meters</div>
+          <div><strong>Time:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>
+        </div>
+        <div class="text-[10px] text-cyan-300 bg-blue-950/70 border border-blue-800 p-1.5 space-y-0.5">
+          <div><strong>Nearest Corridor:</strong> ${nearestRoadStr}</div>
+          <div><strong>Nearest Fleet Unit:</strong> ${nearestVehicleStr}</div>
+        </div>
+      </div>`,
+      { sticky: true }
+    );
+
+    marker.on('click', () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo([lat, lng], 14, { duration: 1.0 });
+      }
+    });
+
+    layer.addLayer(marker);
+  }, [userLocation, filters.userLocation, roads, vehicles]);
+
   const jumpToScope = (scope: MapViewScope) => {
     setActiveScope(scope);
     if (!mapInstanceRef.current) return;
@@ -902,6 +1216,22 @@ export const GisMap: React.FC<GisMapProps> = ({
               </span>
             )}
           </button>
+
+          {/* Quick Guwahati Location Shortcut Button */}
+          <button
+            id="btn-quick-guwahati"
+            type="button"
+            onClick={() => setPresetLocation('guwahati')}
+            className={`flex items-center gap-1 px-2 py-1 text-[10px] sm:text-xs font-mono font-black uppercase transition-all whitespace-nowrap cursor-pointer border-2 border-black shadow-[2px_2px_0px_#0a0a0a] ${
+              userLocation && userLocation.address?.includes('Guwahati')
+                ? 'bg-blue-600 text-white'
+                : 'bg-white hover:bg-neutral-100 text-black'
+            }`}
+            title="Jump to Guwahati Central Hub"
+          >
+            <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <span>Guwahati</span>
+          </button>
         </div>
       </div>
 
@@ -924,7 +1254,135 @@ export const GisMap: React.FC<GisMapProps> = ({
       )}
 
       {/* Map Control Overlay (Top-Right) - Fully Labeled & Structured */}
-      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 items-end">
+      <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 items-end">
+        {/* User Geolocation Action Button with Dropdown */}
+        <div className="relative w-full">
+          <div className="flex items-stretch border-2 border-black shadow-[2px_2px_0px_#0a0a0a]">
+            <button
+              id="btn-my-location"
+              type="button"
+              onClick={() => {
+                if (userLocation && mapInstanceRef.current) {
+                  mapInstanceRef.current.flyTo([userLocation.lat, userLocation.lng], 14, { duration: 1.0 });
+                } else {
+                  locateUserViaGps();
+                }
+              }}
+              className={`flex-1 px-2.5 py-1.5 transition-all flex items-center gap-1.5 text-xs font-black font-mono uppercase cursor-pointer ${
+                userLocation
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : isLocating
+                  ? 'bg-amber-300 text-black animate-pulse'
+                  : 'bg-white hover:bg-neutral-100 text-black'
+              }`}
+              title="Access GPS location and show on map"
+            >
+              <Crosshair className={`w-3.5 h-3.5 shrink-0 ${isLocating ? 'animate-spin text-black' : userLocation ? 'text-white' : 'text-blue-600'}`} />
+              <span className="truncate">{isLocating ? 'Locating...' : userLocation ? 'My Location' : 'Locate Me'}</span>
+            </button>
+            <button
+              type="button"
+              id="btn-location-dropdown-toggle"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLocationMenu(!showLocationMenu);
+              }}
+              className={`px-1.5 border-l border-black flex items-center justify-center cursor-pointer ${
+                userLocation ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-neutral-100 hover:bg-neutral-200 text-black'
+              }`}
+              title="Location presets menu"
+            >
+              <span className="text-[10px] font-mono">▼</span>
+            </button>
+          </div>
+
+          {/* Location Dropdown Menu */}
+          {showLocationMenu && (
+            <div className="absolute top-full right-0 mt-1 w-64 bg-white border-2 border-black shadow-[4px_4px_0px_#0a0a0a] z-40 p-2 text-xs font-mono text-black space-y-1.5">
+              <div className="font-black uppercase text-[10px] text-neutral-500 border-b border-neutral-200 pb-1 flex items-center justify-between">
+                <span>Location Access & Presets</span>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationMenu(false)}
+                  className="text-neutral-400 hover:text-black font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <button
+                type="button"
+                id="btn-detect-gps-opt"
+                onClick={() => {
+                  setShowLocationMenu(false);
+                  locateUserViaGps();
+                }}
+                className="w-full text-left px-2 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-900 font-bold flex items-center gap-2 cursor-pointer"
+              >
+                <Crosshair className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <div className="truncate">
+                  <div className="text-[11px] font-black uppercase">Detect Live GPS</div>
+                  <div className="text-[9px] text-blue-700 font-normal">Browser navigator.geolocation</div>
+                </div>
+              </button>
+
+              <div className="text-[9px] font-black uppercase text-neutral-500 pt-1 border-t border-neutral-100">
+                City Hub Presets:
+              </div>
+
+              <button
+                type="button"
+                id="btn-preset-guwahati"
+                onClick={() => setPresetLocation('guwahati')}
+                className="w-full text-left px-2 py-1 hover:bg-neutral-100 border border-neutral-200 font-medium flex items-center justify-between cursor-pointer"
+              >
+                <span className="font-bold">📍 Guwahati (NER Hub)</span>
+                <span className="text-[9px] text-neutral-500 font-mono">Assam</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-preset-dispur"
+                onClick={() => setPresetLocation('dispur')}
+                className="w-full text-left px-2 py-1 hover:bg-neutral-100 border border-neutral-200 font-medium flex items-center justify-between cursor-pointer"
+              >
+                <span>📍 Dispur Capital</span>
+                <span className="text-[9px] text-neutral-500 font-mono">Assam</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-preset-tawang"
+                onClick={() => setPresetLocation('tawang')}
+                className="w-full text-left px-2 py-1 hover:bg-neutral-100 border border-neutral-200 font-medium flex items-center justify-between cursor-pointer"
+              >
+                <span>📍 Tawang Depot</span>
+                <span className="text-[9px] text-neutral-500 font-mono">Arunachal</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-preset-shillong"
+                onClick={() => setPresetLocation('shillong')}
+                className="w-full text-left px-2 py-1 hover:bg-neutral-100 border border-neutral-200 font-medium flex items-center justify-between cursor-pointer"
+              >
+                <span>📍 Shillong Hub</span>
+                <span className="text-[9px] text-neutral-500 font-mono">Meghalaya</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-preset-itanagar"
+                onClick={() => setPresetLocation('itanagar')}
+                className="w-full text-left px-2 py-1 hover:bg-neutral-100 border border-neutral-200 font-medium flex items-center justify-between cursor-pointer"
+              >
+                <span>📍 Itanagar Center</span>
+                <span className="text-[9px] text-neutral-500 font-mono">Arunachal</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         {onOpenNewsRadar && (
           <button
             id="btn-open-news-radar"
@@ -1036,7 +1494,8 @@ export const GisMap: React.FC<GisMapProps> = ({
               { key: 'vehicles', label: 'Active Fleet', color: 'bg-[#ff3e00]' },
               { key: 'incidents', label: 'Hazard Incidents', color: 'bg-black' },
               { key: 'newsAlerts', label: 'News Road Disruptions', color: 'bg-red-600' },
-              { key: 'hospitals', label: 'Hospitals & Hubs', color: 'bg-blue-600' }
+              { key: 'hospitals', label: 'Hospitals & Hubs', color: 'bg-blue-600' },
+              { key: 'userLocation', label: 'User GPS Location', color: 'bg-blue-500' }
             ].map(({ key, label, color }) => (
               <label
                 key={key}
@@ -1078,6 +1537,84 @@ export const GisMap: React.FC<GisMapProps> = ({
             >
               <Download className="w-3.5 h-3.5 text-[#ff3e00]" />
               <span>{t.gis.downloadOfflineArea || 'Download Offline Area'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Status Notice Toast */}
+      {locationMessage && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-black text-white border-2 border-blue-400 px-3 py-1.5 text-xs font-mono shadow-[3px_3px_0px_#0a0a0a] flex items-center gap-2 pointer-events-auto">
+          <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0 animate-bounce" />
+          <span className="font-bold">{locationMessage}</span>
+          <button
+            type="button"
+            onClick={() => setLocationMessage(null)}
+            className="text-neutral-400 hover:text-white ml-1 font-mono text-[10px]"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Floating User Location HUD (Positioned safely above bottom-left legend) */}
+      {userLocation && filters.userLocation && (
+        <div className="absolute bottom-28 sm:bottom-28 left-3 z-20 bg-white border-2 border-black p-2.5 shadow-[3px_3px_0px_#0a0a0a] max-w-xs sm:max-w-sm font-mono text-xs text-black pointer-events-auto">
+          <div className="flex items-center justify-between gap-2 border-b border-neutral-200 pb-1.5 mb-1.5">
+            <div className="flex items-center gap-1.5 font-black text-blue-600 uppercase text-[11px]">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping shrink-0" />
+              <span>User Location Active</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className={`px-1.5 py-0.2 text-[9px] font-black uppercase text-white ${userLocation.source === 'gps' ? 'bg-blue-600' : 'bg-emerald-600'}`}>
+                {userLocation.source === 'gps' ? 'LIVE GPS' : 'PRESET'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setUserLocation(null)}
+                className="text-neutral-400 hover:text-black text-xs font-bold px-1"
+                title="Dismiss location marker"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <div className="font-bold text-black text-xs truncate mb-1">
+            {userLocation.address || 'Detected Position'}
+          </div>
+
+          <div className="text-[10px] text-neutral-600 space-y-0.5 mb-2 font-mono">
+            <div>Coords: {userLocation.lat.toFixed(5)}° N, {userLocation.lng.toFixed(5)}° E</div>
+            <div>Accuracy: ±{userLocation.accuracy}m</div>
+          </div>
+
+          <div className="flex items-center gap-1.5 pt-1 border-t border-neutral-100">
+            <button
+              type="button"
+              id="btn-recenter-user-location"
+              onClick={() => {
+                if (mapInstanceRef.current) {
+                  mapInstanceRef.current.flyTo([userLocation.lat, userLocation.lng], 14, { duration: 1.0 });
+                }
+              }}
+              className="flex-1 py-1 bg-black hover:bg-neutral-800 text-white text-[10px] font-black uppercase flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <Crosshair className="w-3 h-3 text-blue-400" />
+              <span>Center Map</span>
+            </button>
+
+            <button
+              type="button"
+              id="btn-toggle-live-tracking"
+              onClick={toggleLiveTracking}
+              className={`px-2 py-1 text-[10px] font-black uppercase border border-black cursor-pointer flex items-center gap-1 ${
+                isLiveWatching ? 'bg-blue-600 text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-black'
+              }`}
+              title={isLiveWatching ? 'Pause Live Tracking' : 'Enable Continuous Live Tracking'}
+            >
+              <Navigation className={`w-3 h-3 ${isLiveWatching ? 'animate-pulse text-white' : 'text-neutral-700'}`} />
+              <span>{isLiveWatching ? 'Tracking ON' : 'Track'}</span>
             </button>
           </div>
         </div>

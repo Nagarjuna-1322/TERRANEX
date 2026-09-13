@@ -410,7 +410,7 @@ Respond in strict JSON format:
   "reasoning": "brief explainable AI explanation"
 }`;
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.5-flash',
           contents: prompt
         });
 
@@ -898,7 +898,7 @@ ${historyPrompt}
 User Question: ${question}`;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.5-flash',
           contents: systemPrompt
         });
 

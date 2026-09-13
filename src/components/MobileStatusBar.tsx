@@ -25,19 +25,22 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ isOnline }) =>
   }, []);
 
   return (
-    <div className="w-full bg-[#0a0a0a] text-white px-4 py-1.5 flex items-center justify-between text-[11px] font-mono select-none z-50">
+    <div className="w-full bg-[#0a0a0a] text-white px-4 py-2 flex items-center justify-between text-[11px] font-mono select-none z-50 shrink-0">
       {/* Time & Location Carrier */}
       <div className="flex items-center gap-1.5 font-black">
-        <span>{timeStr || '09:41 AM'}</span>
-        <span className="text-[9px] px-1 py-0.2 bg-neutral-800 text-neutral-300 font-bold uppercase tracking-wider">
-          NER 5G
+        <span className="tracking-tight">{timeStr || '09:41'}</span>
+        <span className="text-[9px] px-1 py-0.5 bg-neutral-800 text-neutral-300 font-bold uppercase tracking-wider rounded-xs">
+          5G
         </span>
       </div>
 
-      {/* Dynamic Camera Notch Center */}
-      <div className="hidden sm:flex items-center justify-center">
-        <div className="w-16 h-3.5 bg-neutral-900 border border-neutral-700 rounded-full flex items-center justify-center">
-          <div className="w-1.5 h-1.5 rounded-full bg-neutral-600"></div>
+      {/* Dynamic Camera Notch / Island Center */}
+      <div className="flex items-center justify-center">
+        <div className="w-24 h-4.5 bg-black border border-neutral-800 rounded-full flex items-center justify-center gap-2 px-2 shadow-inner">
+          <div className="w-2.5 h-2.5 rounded-full bg-neutral-900 border border-neutral-700 flex items-center justify-center">
+            <div className="w-1 h-1 rounded-full bg-blue-950"></div>
+          </div>
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
         </div>
       </div>
 
@@ -49,8 +52,8 @@ export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ isOnline }) =>
         ) : (
           <WifiOff className="w-3.5 h-3.5 text-amber-400" />
         )}
-        <div className="flex items-center gap-0.5">
-          <span className="text-[10px] font-bold">96%</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] font-bold">98%</span>
           <BatteryCharging className="w-4 h-4 text-emerald-400" />
         </div>
       </div>

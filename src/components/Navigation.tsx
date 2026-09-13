@@ -126,168 +126,180 @@ export const TopNavigation: React.FC<NavigationProps> = ({
   return (
     <header
       id="app-top-header"
-      className="sticky top-0 z-40 w-full bg-[#f8f9fa] border-b-2 border-black px-2.5 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-3 shadow-xs select-none"
+      className="sticky top-0 z-40 w-full bg-[#f8f9fa] border-b-2 border-black px-2.5 sm:px-4 py-2 flex flex-col gap-2 shadow-xs select-none"
     >
-      {/* Left: App Branding & Role Mode */}
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="w-8 h-8 bg-[#ff3e00] text-white flex items-center justify-center font-black font-mono text-sm tracking-tighter border-2 border-black shadow-[1.5px_1.5px_0px_#0a0a0a]">
-          TNX
-        </div>
-        <div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm sm:text-base font-black tracking-tight text-[#0a0a0a] uppercase font-sans leading-none">
-              TerraNex
-            </span>
-            <button
-              type="button"
-              onClick={onToggleSimpleMode}
-              className="px-1.5 py-0.5 bg-black hover:bg-neutral-800 text-white text-[9px] font-black uppercase tracking-wider rounded-xs cursor-pointer transition"
-              title="Tap to switch between Citizen Mode and Tactical Officer Mode"
-            >
-              {simpleMode ? '🟢 Citizen' : '⚙️ Officer'}
-            </button>
+      {/* Top Bar: TerraNex Name, Citizen/Officer Badge & Language Selector */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Left: App Branding & Role Mode */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-8 h-8 bg-[#ff3e00] text-white flex items-center justify-center font-black font-mono text-sm tracking-tighter border-2 border-black shadow-[1.5px_1.5px_0px_#0a0a0a]">
+            TNX
           </div>
-          <p className="text-[10px] font-bold text-neutral-500 hidden sm:block">
-            Northeast Corridor Command
-          </p>
-        </div>
-      </div>
-
-      {/* Center: PROMINENT LANGUAGE SELECTOR ON TOP */}
-      <div
-        id="top-language-selector"
-        className="flex items-center bg-white border-2 border-black p-0.5 shadow-[2px_2px_0px_#0a0a0a] shrink-0"
-      >
-        <div className="flex items-center gap-1 px-1.5 py-0.5 text-[#ff3e00]">
-          <Globe className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-[10px] font-mono font-black uppercase tracking-wider text-black hidden md:inline">
-            Language:
-          </span>
-        </div>
-        <div className="flex items-center gap-0.5 font-sans">
-          {[
-            { code: 'en' as Language, short: 'EN', full: 'English' },
-            { code: 'hi' as Language, short: 'हि', full: 'हिन्दी' },
-            { code: 'as' as Language, short: 'অ', full: 'অসমীয়া' }
-          ].map((item) => {
-            const isSelected = lang === item.code;
-            return (
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm sm:text-base font-black tracking-tight text-[#0a0a0a] uppercase font-sans leading-none">
+                TerraNex
+              </span>
               <button
-                key={item.code}
-                id={`top-lang-switch-${item.code}`}
                 type="button"
-                onClick={() => onLangChange(item.code)}
-                className={`px-2 py-0.5 text-xs font-bold transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-black text-white font-black shadow-[1px_1px_0px_#ff3e00]'
-                    : 'text-neutral-700 hover:bg-neutral-100 hover:text-black'
-                }`}
-                title={`Switch Language to ${item.full} / भाषा बदलें`}
+                id="btn-toggle-role-mode"
+                onClick={onToggleSimpleMode}
+                className="px-1.5 py-0.5 bg-black hover:bg-neutral-800 text-white text-[9px] font-black uppercase tracking-wider rounded-xs cursor-pointer transition shadow-[1px_1px_0px_#ff3e00]"
+                title="Tap to switch between Citizen Mode and Tactical Officer Mode"
               >
-                <span className="sm:hidden">{item.short}</span>
-                <span className="hidden sm:inline">{item.full}</span>
+                {simpleMode ? '🟢 Citizen' : '⚙️ Officer'}
               </button>
-            );
-          })}
+            </div>
+            <p className="text-[10px] font-bold text-neutral-500 hidden sm:block">
+              Northeast Corridor Command
+            </p>
+          </div>
+        </div>
+
+        {/* Right: Language Selector */}
+        <div
+          id="top-language-selector"
+          className="flex items-center bg-white border-2 border-black p-0.5 shadow-[2px_2px_0px_#0a0a0a] shrink-0"
+        >
+          <div className="flex items-center gap-1 px-1.5 py-0.5 text-[#ff3e00]">
+            <Globe className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-[10px] font-mono font-black uppercase tracking-wider text-black hidden sm:inline">
+              Language:
+            </span>
+          </div>
+          <div className="flex items-center gap-0.5 font-sans">
+            {[
+              { code: 'en' as Language, short: 'EN', full: 'English' },
+              { code: 'hi' as Language, short: 'हि', full: 'हिन्दी' },
+              { code: 'as' as Language, short: 'অ', full: 'অসমীয়া' }
+            ].map((item) => {
+              const isSelected = lang === item.code;
+              return (
+                <button
+                  key={item.code}
+                  id={`top-lang-switch-${item.code}`}
+                  type="button"
+                  onClick={() => onLangChange(item.code)}
+                  className={`px-2 py-0.5 text-xs font-bold transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-black text-white font-black shadow-[1px_1px_0px_#ff3e00]'
+                      : 'text-neutral-700 hover:bg-neutral-100 hover:text-black'
+                  }`}
+                  title={`Switch Language to ${item.full} / भाषा बदलें`}
+                >
+                  <span className="sm:hidden">{item.short}</span>
+                  <span className="hidden sm:inline">{item.full}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Right: Quick Action Controls & Emergency SOS */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* User Guide */}
+      {/* New Small Box Below the Name of TerraNex: Contains [ Guide | Demo | View Mode | Wifi | Search | SOS ] */}
+      <div
+        id="terranex-tools-box"
+        className="w-full bg-white border-2 border-black p-1 sm:p-1.5 shadow-[2px_2px_0px_#0a0a0a] flex items-center justify-between sm:justify-start gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none touch-pan-x"
+      >
+        {/* 1. Guide Button */}
         {onOpenGuide && (
           <button
+            id="btn-header-guide"
             type="button"
             onClick={onOpenGuide}
-            className="px-2 py-1 bg-white hover:bg-neutral-100 border border-black text-[11px] font-mono font-bold flex items-center gap-1 shadow-[1px_1px_0px_#000] cursor-pointer"
+            className="px-2 py-1 bg-white hover:bg-neutral-100 border border-black text-xs font-mono font-bold flex items-center gap-1 shadow-[1.5px_1.5px_0px_#000] cursor-pointer shrink-0 transition"
             title="Open TerraNex Guide & Status Legend"
           >
             <HelpCircle className="w-3.5 h-3.5 text-[#ff3e00]" />
-            <span className="hidden md:inline">Guide</span>
+            <span>Guide</span>
           </button>
         )}
 
-        {/* 10-Step Interactive Demo Walkthrough */}
+        {/* 2. Demo Walkthrough Button */}
         {onOpenDemo && (
           <button
+            id="btn-header-demo"
             type="button"
             onClick={onOpenDemo}
-            className="px-2 py-1 bg-neutral-900 hover:bg-black text-white border border-black text-[11px] font-mono font-bold flex items-center gap-1 shadow-[1px_1px_0px_#ff3e00] cursor-pointer"
+            className="px-2 py-1 bg-[#171717] hover:bg-black text-white border border-black text-xs font-mono font-black flex items-center gap-1 shadow-[2px_2px_0px_#ff3e00] cursor-pointer shrink-0 transition"
             title="Open 10-Step Interactive SIH Walkthrough"
           >
             <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
-            <span className="hidden md:inline">Demo</span>
+            <span>Demo</span>
           </button>
         )}
 
-        {/* View Mode Toggle (Mobile vs Wide Desktop) */}
+        {/* 3. Mobile Phone vs Wide View Layout Toggle */}
         {onToggleWideLayout && (
           <button
+            id="btn-header-compact-toggle"
             type="button"
             onClick={onToggleWideLayout}
-            className="hidden lg:flex px-2 py-1 bg-white hover:bg-neutral-100 border border-black text-[11px] font-mono font-bold items-center gap-1 shadow-[1px_1px_0px_#000] cursor-pointer"
-            title={isWideLayout ? 'Switch to Compact Phone Frame' : 'Switch to Wide Dashboard View'}
+            className="px-2 py-1 bg-white hover:bg-neutral-100 border border-black text-xs font-mono font-bold flex items-center gap-1 shadow-[1.5px_1.5px_0px_#000] cursor-pointer shrink-0 transition"
+            title={isWideLayout ? 'Switch to Mobile Smartphone Frame' : 'Switch to Wide Dashboard View'}
           >
             {isWideLayout ? (
               <>
-                <Minimize2 className="w-3.5 h-3.5 text-neutral-700" />
-                <span>Compact</span>
+                <Minimize2 className="w-3.5 h-3.5 text-[#ff3e00]" />
+                <span>Mobile</span>
               </>
             ) : (
               <>
-                <Maximize2 className="w-3.5 h-3.5 text-neutral-700" />
+                <Maximize2 className="w-3.5 h-3.5 text-neutral-800" />
                 <span>Wide</span>
               </>
             )}
           </button>
         )}
 
-        {/* Offline / Online Sync Indicator */}
+        {/* 4. Offline / Online Sync Indicator Button */}
         <button
+          id="btn-header-wifi-toggle"
           type="button"
           onClick={onToggleOffline}
-          className={`px-1.5 py-1 border border-black text-[10px] font-mono font-bold flex items-center gap-1 shadow-[1px_1px_0px_#000] cursor-pointer ${
+          className={`px-2 py-1 border border-black text-xs font-mono font-bold flex items-center gap-1 shadow-[1.5px_1.5px_0px_#000] cursor-pointer shrink-0 transition ${
             isOnline
-              ? 'bg-emerald-100 text-emerald-900'
-              : 'bg-amber-100 text-amber-900 animate-pulse'
+              ? 'bg-[#d1fae5] hover:bg-[#a7f3d0] text-emerald-900'
+              : 'bg-amber-100 hover:bg-amber-200 text-amber-900 animate-pulse'
           }`}
-          title={isOnline ? 'Online mode active (Tap to simulate offline mountain corridor)' : 'Offline mode active'}
+          title={isOnline ? 'Online mode active (Click to simulate offline mountain corridor)' : 'Offline mode active (Click to reconnect)'}
         >
           {isOnline ? (
-            <Wifi className="w-3 h-3 text-emerald-700" />
+            <Wifi className="w-3.5 h-3.5 text-emerald-700" />
           ) : (
-            <WifiOff className="w-3 h-3 text-amber-700" />
+            <WifiOff className="w-3.5 h-3.5 text-amber-700" />
           )}
           {pendingSyncCount > 0 && (
-            <span className="px-1 bg-amber-500 text-white text-[8px] font-black">
+            <span className="px-1 bg-amber-500 text-white text-[8px] font-black border border-black">
               {pendingSyncCount}
             </span>
           )}
         </button>
 
-        {/* Quick Search */}
+        {/* 5. Quick Search Button */}
         <button
+          id="btn-header-search"
           type="button"
           onClick={onOpenSearch}
-          className="w-7 h-7 bg-white hover:bg-neutral-100 border border-black flex items-center justify-center shadow-[1px_1px_0px_#000] cursor-pointer"
+          className="w-7 h-7 bg-white hover:bg-neutral-100 border border-black flex items-center justify-center shadow-[1.5px_1.5px_0px_#000] cursor-pointer shrink-0 transition"
           title="Search highways, vehicles, and alerts"
         >
           <Search className="w-3.5 h-3.5 text-black" />
         </button>
 
-        {/* 1-Tap Emergency SOS */}
+        {/* 6. Emergency SOS Button */}
         <button
           id="btn-toggle-emergency"
           type="button"
           onClick={onToggleEmergency}
-          className={`px-2 sm:px-2.5 py-1 border-2 border-black text-[11px] font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer transition ${
+          className={`px-2.5 sm:px-3 py-1 border-2 border-black text-xs font-black uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shrink-0 transition ${
             emergencyMode
               ? 'bg-[#ff3e00] text-white animate-pulse shadow-[2px_2px_0px_#0a0a0a]'
-              : 'bg-red-600 text-white hover:bg-red-700 shadow-[1.5px_1.5px_0px_#0a0a0a]'
+              : 'bg-red-600 text-white hover:bg-red-700 shadow-[2px_2px_0px_#0a0a0a]'
           }`}
           title="Emergency SOS Broadcast"
         >
-          <Radio className="w-3 h-3" />
+          <Radio className="w-3.5 h-3.5" />
           <span>SOS</span>
         </button>
       </div>
@@ -381,6 +393,11 @@ export const BottomNavigation: React.FC<NavigationProps> = ({
           );
         })}
       </nav>
+
+      {/* Smartphone Bottom Home Indicator Bar */}
+      <div className="w-full pb-1.5 pt-1 flex justify-center items-center bg-white border-t border-neutral-100">
+        <div className="w-28 h-1 bg-neutral-950/30 rounded-full" />
+      </div>
     </div>
   );
 };

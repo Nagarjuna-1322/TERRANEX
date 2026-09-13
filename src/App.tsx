@@ -73,20 +73,20 @@ export default function App() {
   const [emergencyMode, setEmergencyMode] = useState<boolean>(false);
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
 
-  // Layout View Mode (Wide Desktop Dashboard vs Compact Phone View)
+  // Layout View Mode (Mobile Phone View by default)
   const [isWideLayout, setIsWideLayout] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('tnx_wide_layout');
-      if (saved !== null) return saved === 'true';
-      return window.innerWidth >= 1024;
+      if (saved === 'wide') return true;
+      return false; // Dedicated mobile application view by default
     }
-    return true;
+    return false;
   });
 
   const handleToggleWideLayout = () => {
     setIsWideLayout((prev) => {
       const next = !prev;
-      localStorage.setItem('tnx_wide_layout', String(next));
+      localStorage.setItem('tnx_wide_layout', next ? 'wide' : 'mobile');
       return next;
     });
   };
@@ -341,14 +341,14 @@ export default function App() {
   const unreadAlertCount = alerts.filter((a) => !a.acknowledged).length;
 
   return (
-    <div className="min-h-screen bg-neutral-950 sm:bg-neutral-900 flex justify-center items-start sm:p-2 sm:py-3 selection:bg-[#ff3e00] selection:text-white">
-      {/* Responsive Application Shell (Adapts between Wide Desktop and Compact Mobile) */}
+    <div className="min-h-screen bg-[#0b0c10] flex justify-center items-center sm:p-3 selection:bg-[#ff3e00] selection:text-white">
+      {/* Mobile Smartphone Frame Chassis */}
       <div
         className={`w-full ${
           isWideLayout
-            ? 'max-w-6xl sm:rounded-[24px] sm:border-2 sm:border-black'
-            : 'max-w-lg sm:max-h-[96vh] sm:rounded-[36px] sm:border-[5px] sm:border-neutral-950'
-        } min-h-screen sm:min-h-[890px] bg-[#f8f9fa] text-[#0a0a0a] flex flex-col font-sans shadow-[0_25px_70px_rgba(0,0,0,0.6)] border-0 overflow-hidden relative transition-all duration-300`}
+            ? 'max-w-6xl sm:rounded-[28px] sm:border-4 sm:border-neutral-900'
+            : 'max-w-[430px] sm:h-[92vh] sm:max-h-[915px] sm:rounded-[48px] sm:border-[10px] sm:border-neutral-900 sm:ring-4 sm:ring-neutral-800/90'
+        } min-h-screen sm:min-h-[820px] bg-[#f8f9fa] text-[#0a0a0a] flex flex-col font-sans shadow-[0_25px_80px_rgba(0,0,0,0.85)] border-0 overflow-hidden relative transition-all duration-300`}
       >
         {/* Mobile Device Status Bar */}
         <MobileStatusBar isOnline={isOnline} />
@@ -383,7 +383,7 @@ export default function App() {
 
         {/* Interactive 10-Step Demo Controller Drawer */}
         {showDemoController && (
-          <div className="p-3 bg-neutral-950 border-b-2 border-black sticky top-[53px] z-35 animate-in slide-in-from-top duration-200">
+          <div className="p-3 bg-neutral-950 border-b-2 border-black relative z-30 animate-in slide-in-from-top duration-200">
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-800 text-white font-mono text-xs">
               <span className="text-[#ff3e00] font-black uppercase flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-yellow-400" />

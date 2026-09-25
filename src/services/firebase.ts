@@ -9,6 +9,7 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth';
 import {
+  initializeFirestore,
   getFirestore,
   doc,
   getDocFromServer,
@@ -33,9 +34,19 @@ const effectiveFirebaseConfig = {
 // Initialize Firebase App
 export const app = getApps().length === 0 ? initializeApp(effectiveFirebaseConfig) : getApp();
 
-// CRITICAL: Must specify firestoreDatabaseId
+// CRITICAL: Must specify firestoreDatabaseId and use experimentalForceLongPolling
+// to prevent 10s WebChannel timeout in proxy and sandboxed environments
 const dbId = (firebaseConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId || 'ai-studio-terranex-8d5fce7b-58e1-4e3f-aee3-63975d069887';
-export const db = getFirestore(app, dbId);
+
+let firestoreInstance: ReturnType<typeof getFirestore>;
+try {
+  firestoreInstance = initializeFirestore(app, {
+    experimentalForceLongPolling: true
+  }, dbId);
+} catch {
+  firestoreInstance = getFirestore(app, dbId);
+}
+export const db = firestoreInstance;
 
 // Initialize Firebase Auth defensively
 let authInstance: ReturnType<typeof getAuth> | null = null;

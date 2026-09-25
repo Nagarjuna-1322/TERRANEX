@@ -32,7 +32,7 @@ service cloud.firestore {
 
     // Connection testing doc
     match /test/{docId} {
-      allow get: if true;
+      allow read: if true;
     }
 
     // Admin registry

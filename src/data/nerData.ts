@@ -1,4 +1,4 @@
-import { User, Road, Vehicle, Delivery, Incident, WeatherData, DistrictResilience, AuditLog, RouteOption } from '../types';
+import { User, Road, Vehicle, Delivery, Incident, WeatherData, DistrictResilience, AuditLog, RouteOption } from '../types.ts';
 
 export const INITIAL_USER: User = {
   id: 'usr-auth-01',

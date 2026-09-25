@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile and role details for TerraNex command personnel.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "description": "Unique user ID matching auth UID." },
+        "name": { "type": "string", "maxLength": 120, "description": "Full legal name or officer designation." },
+        "employeeId": { "type": "string", "maxLength": 60, "description": "Government/Department employee badge ID." },
+        "email": { "type": "string", "maxLength": 150, "description": "Verified officer email address." },
+        "phone": { "type": "string", "maxLength": 30, "description": "Direct communication contact number." },
+        "role": { "type": "string", "enum": ["authority", "field_officer", "driver", "analyst"], "description": "Assigned operational role." },
+        "organization": { "type": "string", "maxLength": 150, "description": "Department or military border roads division." },
+        "state": { "type": "string", "maxLength": 80, "description": "State of deployment." },
+        "district": { "type": "string", "maxLength": 80, "description": "District administrative headquarters." },
+        "updatedAt": { "type": "string", "maxLength": 60, "description": "ISO timestamp of last update." }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Road": {
+      "title": "Road",
+      "description": "Critical arterial highway corridor or mountain pass.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "description": "Unique road identifier." },
+        "code": { "type": "string", "maxLength": 30, "description": "Highway code such as NH-13, NH-15, NH-27." },
+        "name": { "type": "string", "maxLength": 150, "description": "Descriptive corridor name." },
+        "state": { "type": "string", "maxLength": 80, "description": "Host Indian state." },
+        "status": { "type": "string", "enum": ["ACCESSIBLE", "MODERATE", "HIGH_RISK", "BLOCKED"], "description": "Current status." },
+        "riskScore": { "type": "number", "description": "Risk score from 0 to 100." },
+        "accessibility": { "type": "string", "enum": ["ACCESSIBLE", "RESTRICTED", "BLOCKED"], "description": "Passage tier." },
+        "recommendedAction": { "type": "string", "maxLength": 300, "description": "Advisory action for transport convoys." },
+        "rainfallMmH": { "type": "number", "description": "Hourly precipitation in millimeters." },
+        "updatedAt": { "type": "string", "maxLength": 60, "description": "ISO timestamp of update." }
+      },
+      "required": ["id", "code", "name", "status", "riskScore"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Logistics convoy or emergency supply vehicle.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "description": "Vehicle asset identifier." },
+        "vehicleNumber": { "type": "string", "maxLength": 40, "description": "Registration plate number e.g. TNX-1042." },
+        "type": { "type": "string", "enum": ["LOGISTICS", "EMERGENCY", "CONSTRUCTION"], "description": "Vehicle classification." },
+        "driverName": { "type": "string", "maxLength": 120, "description": "Driver full name." },
+        "driverPhone": { "type": "string", "maxLength": 30, "description": "Driver phone number." },
+        "cargo": { "type": "string", "maxLength": 200, "description": "Cargo description." },
+        "status": { "type": "string", "enum": ["IN_TRANSIT", "IDLE", "LOADING", "ARRIVED", "DELAYED", "REROUTED"], "description": "Operation status." },
+        "currentRoadCode": { "type": "string", "maxLength": 40, "description": "Current road being traversed." },
+        "eta": { "type": "string", "maxLength": 40, "description": "Estimated arrival time." },
+        "riskLevel": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"], "description": "Assessed hazard level." },
+        "updatedAt": { "type": "string", "maxLength": 60, "description": "Last GPS sync timestamp." }
+      },
+      "required": ["id", "vehicleNumber", "type", "driverName", "status"]
+    },
+    "Delivery": {
+      "title": "Delivery",
+      "description": "Critical supply delivery payload record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "description": "Delivery tracking ID." },
+        "deliveryCode": { "type": "string", "maxLength": 40, "description": "Manifest dispatch code e.g. #TX-20481." },
+        "cargo": { "type": "string", "maxLength": 200, "description": "Manifest cargo description." },
+        "priority": { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"], "description": "Priority tier." },
+        "origin": { "type": "string", "maxLength": 120, "description": "Dispatch warehouse location." },
+        "destination": { "type": "string", "maxLength": 120, "description": "Destination facility location." },
+        "vehicleNumber": { "type": "string", "maxLength": 40, "description": "Assigned convoy vehicle." },
+        "status": { "type": "string", "enum": ["IN_TRANSIT", "DELAYED", "DELIVERED", "REROUTED"], "description": "Delivery lifecycle status." },
+        "updatedAt": { "type": "string", "maxLength": 60, "description": "Last status update." }
+      },
+      "required": ["id", "deliveryCode", "cargo", "priority", "status"]
+    },
+    "Incident": {
+      "title": "Incident",
+      "description": "Hazard incident such as landslide, flood, or road damage.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "description": "Unique incident ID." },
+        "incidentCode": { "type": "string", "maxLength": 40, "description": "Tracking code e.g. #INC-2041." },
+        "type": { "type": "string", "maxLength": 60, "description": "Classification e.g. Landslide, Flood, Road Damage." },
+        "severity": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"], "description": "Hazard severity." },
+        "lat": { "type": "number", "description": "Latitude coordinate." },
+        "lng": { "type": "number", "description": "Longitude coordinate." },
+        "roadCode": { "type": "string", "maxLength": 40, "description": "Impacted highway." },
+        "status": { "type": "string", "enum": ["ACTIVE", "INVESTIGATING", "RESOLVED"], "description": "Resolution status." },
+        "description": { "type": "string", "maxLength": 1000, "description": "Incident report narrative." },
+        "reportedBy": { "type": "string", "maxLength": 120, "description": "Reporting officer identity." },
+        "reportedAt": { "type": "string", "maxLength": 60, "description": "Timestamp reported." }
+      },
+      "required": ["id", "incidentCode", "type", "severity", "status"]
+    },
+    "Alert": {
+      "title": "Alert",
+      "description": "Emergency command bulletin or hazard notification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "description": "Alert notification ID." },
+        "level": { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "INFO"], "description": "Urgency level." },
+        "title": { "type": "string", "maxLength": 200, "description": "Alert headline." },
+        "message": { "type": "string", "maxLength": 1000, "description": "Full advisory text." },
+        "timestamp": { "type": "string", "maxLength": 60, "description": "Emission timestamp." },
+        "read": { "type": "boolean", "description": "Acknowledged state." }
+      },
+      "required": ["id", "level", "title", "message"]
+    },
+    "NewsArticle": {
+      "title": "NewsArticle",
+      "description": "Live open-source intelligence news article affecting highway transport.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "description": "News article identifier." },
+        "title": { "type": "string", "maxLength": 300, "description": "Headline." },
+        "source": { "type": "string", "maxLength": 150, "description": "News wire or government bureau." },
+        "category": { "type": "string", "maxLength": 60, "description": "Hazard classification." },
+        "extractedHighway": { "type": "string", "maxLength": 60, "description": "Highway corridor extracted." },
+        "detectedStatus": { "type": "string", "enum": ["BLOCKED", "HIGH_RISK", "MODERATE", "ACCESSIBLE"], "description": "Status extracted." },
+        "impactSummary": { "type": "string", "maxLength": 600, "description": "Summary." },
+        "publishedAt": { "type": "string", "maxLength": 60, "description": "Publication timestamp." }
+      },
+      "required": ["id", "title", "source", "detectedStatus"]
+    },
+    "CloudSyncMeta": {
+      "title": "CloudSyncMeta",
+      "description": "Meta information for cloud persistence and sync status.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "description": "Status record ID." },
+        "lastSyncedAt": { "type": "string", "maxLength": 60, "description": "ISO timestamp of sync." },
+        "syncedBy": { "type": "string", "maxLength": 150, "description": "Email or UID of syncer." },
+        "recordsCount": { "type": "number", "description": "Total entity records stored." },
+        "status": { "type": "string", "maxLength": 40, "description": "Health status string." }
+      },
+      "required": ["id", "lastSyncedAt", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile records indexed by auth UID."
+    },
+    "/roads/{roadId}": {
+      "schema": "Road",
+      "description": "Master highway and corridor status records."
+    },
+    "/vehicles/{vehicleId}": {
+      "schema": "Vehicle",
+      "description": "Live convoy fleet and telemetry records."
+    },
+    "/deliveries/{deliveryId}": {
+      "schema": "Delivery",
+      "description": "Essential supply delivery tracking records."
+    },
+    "/incidents/{incidentId}": {
+      "schema": "Incident",
+      "description": "Tactical incident and hazard reports."
+    },
+    "/alerts/{alertId}": {
+      "schema": "Alert",
+      "description": "Tactical emergency alert broadcasts."
+    },
+    "/newsArticles/{articleId}": {
+      "schema": "NewsArticle",
+      "description": "Open-source news radar intelligence articles."
+    },
+    "/cloudSyncMeta/{metaId}": {
+      "schema": "CloudSyncMeta",
+      "description": "Operational synchronization metadata."
+    }
+  }
+}

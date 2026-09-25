@@ -5,6 +5,7 @@ import {
   Incident,
   IncidentType,
   IncidentSeverity,
+  IncidentMediaItem,
   Alert,
   WeatherData,
   DistrictResilience,
@@ -13,6 +14,7 @@ import {
   AuditLog,
   NewsArticle
 } from '../types';
+import { generateMediaForIncident } from './mediaRepository';
 import {
   INITIAL_ROADS,
   INITIAL_VEHICLES,
@@ -459,6 +461,16 @@ export const api = {
           }
         }
         return { success: true, incident: newInc };
+      }
+    );
+  },
+
+  getIncidentMedia: async (incident: Incident): Promise<{ success: boolean; media: IncidentMediaItem[] }> => {
+    return safeFetch(
+      `${API_BASE}/incidents/${incident.id}/media`,
+      undefined,
+      () => {
+        return { success: true, media: generateMediaForIncident(incident) };
       }
     );
   },

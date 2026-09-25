@@ -1,4 +1,4 @@
-import { NewsArticle, Road, Alert, RoadStatus } from '../types';
+import { NewsArticle, Road, Alert, RoadStatus } from '../types.ts';
 
 export const INITIAL_INDIA_NEWS_ARTICLES: NewsArticle[] = [
   {

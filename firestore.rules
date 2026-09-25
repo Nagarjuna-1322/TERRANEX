@@ -1,0 +1,115 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'mmnagarjunareddy@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Connection testing doc
+    match /test/{docId} {
+      allow get: if true;
+    }
+
+    // Admin registry
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow create: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow update: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Roads
+    match /roads/{roadId} {
+      allow read: if true;
+      allow create, update: if isValidId(roadId);
+      allow delete: if isAdmin();
+    }
+
+    // Vehicles
+    match /vehicles/{vehicleId} {
+      allow read: if true;
+      allow create, update: if isValidId(vehicleId);
+      allow delete: if isAdmin();
+    }
+
+    // Deliveries
+    match /deliveries/{deliveryId} {
+      allow read: if true;
+      allow create, update: if isValidId(deliveryId);
+      allow delete: if isAdmin();
+    }
+
+    // Incidents
+    match /incidents/{incidentId} {
+      allow read: if true;
+      allow create, update: if isValidId(incidentId);
+      allow delete: if isAdmin();
+    }
+
+    // Alerts
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow create, update: if isValidId(alertId);
+      allow delete: if isAdmin();
+    }
+
+    // Weather
+    match /weather/{weatherId} {
+      allow read: if true;
+      allow create, update: if isValidId(weatherId);
+      allow delete: if isAdmin();
+    }
+
+    // News Articles
+    match /newsArticles/{articleId} {
+      allow read: if true;
+      allow create, update: if isValidId(articleId);
+      allow delete: if isAdmin();
+    }
+
+    // Audit Logs
+    match /auditLogs/{logId} {
+      allow read: if true;
+      allow create: if isValidId(logId);
+      allow update, delete: if isAdmin();
+    }
+
+    // Cloud Sync Metadata
+    match /cloudSyncMeta/{metaId} {
+      allow read: if true;
+      allow write: if isValidId(metaId);
+    }
+  }
+}

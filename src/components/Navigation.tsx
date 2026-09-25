@@ -17,7 +17,9 @@ import {
   WifiOff,
   HelpCircle,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Cloud,
+  ShieldCheck
 } from 'lucide-react';
 
 export interface NavigationProps {

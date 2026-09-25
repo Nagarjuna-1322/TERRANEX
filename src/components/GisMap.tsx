@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
-import { Road, Vehicle, Incident, NewsArticle, UserLocation } from '../types';
-import { Language, TRANSLATIONS, getLocalizedHighwayName } from '../translations';
+import { Road, Vehicle, Incident, IncidentMediaItem, NewsArticle, UserLocation } from '../types';
+import { Language, TRANSLATIONS, getLocalizedHighwayName, getLocalizedIncidentType, getLocalizedSeverity } from '../translations';
 import {
   Layers,
   Filter,
@@ -28,7 +28,19 @@ import {
   Locate,
   Navigation,
   Menu,
-  X
+  X,
+  Camera,
+  Video,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  ExternalLink,
+  Eye,
+  CheckCircle2
 } from 'lucide-react';
 import { DownloadOfflineMapModal } from './DownloadOfflineMapModal';
 import {
@@ -37,6 +49,8 @@ import {
   OfflineMapPackage
 } from '../services/offlineMapService';
 import { OfflineSyncService } from '../services/offlineSync';
+import { api } from '../services/api';
+import { fetchIncidentMediaFromRepository } from '../services/mediaRepository';
 
 export type GisViewMode = 'Satellite' | 'Road Map' | 'Accessibility Heatmap';
 export type MapViewScope = 'world' | 'india' | 'ner';
@@ -53,6 +67,7 @@ interface GisMapProps {
   onOpenNewsRadar?: () => void;
   selectedRoadId?: string | null;
   selectedVehicleId?: string | null;
+  selectedIncidentId?: string | null;
   emergencyModeActive?: boolean;
   lang?: Language;
   initialViewMode?: GisViewMode;
@@ -99,6 +114,7 @@ export const GisMap: React.FC<GisMapProps> = ({
   onOpenNewsRadar,
   selectedRoadId,
   selectedVehicleId,
+  selectedIncidentId,
   emergencyModeActive = false,
   lang = 'en',
   initialViewMode = 'Road Map',
@@ -116,6 +132,140 @@ export const GisMap: React.FC<GisMapProps> = ({
   const [activeView, setActiveView] = useState<GisViewMode>(initialViewMode);
   const [activeScope, setActiveScope] = useState<MapViewScope>('ner');
   const [mapReady, setMapReady] = useState<boolean>(false);
+
+  // Tactical Incident Recon Media Carousel States (In-Map)
+  const [selectedMapIncident, setSelectedMapIncident] = useState<Incident | null>(() => {
+    if (selectedIncidentId) {
+      return incidents.find((i) => i.id === selectedIncidentId) || null;
+    }
+    return incidents.length > 0 ? incidents[0] : null;
+  });
+  const [showMapMediaDrawer, setShowMapMediaDrawer] = useState<boolean>(false);
+  const [isMediaDrawerMinimized, setIsMediaDrawerMinimized] = useState<boolean>(false);
+  const [mapMediaList, setMapMediaList] = useState<IncidentMediaItem[]>([]);
+  const [loadingMapMedia, setLoadingMapMedia] = useState<boolean>(false);
+  const [mapMediaFilter, setMapMediaFilter] = useState<'all' | 'image' | 'video'>('all');
+  const [mapActiveIndex, setMapActiveIndex] = useState<number>(0);
+  const [isMapPlayingVideo, setIsMapPlayingVideo] = useState<boolean>(false);
+  const [mapVideoProgress, setMapVideoProgress] = useState<number>(0);
+  const [mapVideoCurrentSec, setMapVideoCurrentSec] = useState<number>(0);
+  const [mapPlaybackSpeed, setMapPlaybackSpeed] = useState<number>(1);
+  const [showMapSensorTelemetry, setShowMapSensorTelemetry] = useState<boolean>(false);
+  const [mapImageErrorMap, setMapImageErrorMap] = useState<Record<string, boolean>>({});
+
+  // Sync selectedIncidentId prop if provided
+  useEffect(() => {
+    if (selectedIncidentId) {
+      const match = incidents.find((i) => i.id === selectedIncidentId);
+      if (match) {
+        setSelectedMapIncident(match);
+        setShowMapMediaDrawer(true);
+        setIsMediaDrawerMinimized(false);
+      }
+    }
+  }, [selectedIncidentId, incidents]);
+
+  // Fetch Incident Media for Selected Incident in Map
+  useEffect(() => {
+    if (!selectedMapIncident) {
+      setMapMediaList([]);
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingMapMedia(true);
+    setMapActiveIndex(0);
+    setIsMapPlayingVideo(false);
+    setMapVideoProgress(0);
+    setMapVideoCurrentSec(0);
+
+    api
+      .getIncidentMedia(selectedMapIncident)
+      .then((res) => {
+        if (isMounted) {
+          if (res && res.media && res.media.length > 0) {
+            setMapMediaList(res.media);
+          } else {
+            fetchIncidentMediaFromRepository(selectedMapIncident).then((fallback) => {
+              if (isMounted) setMapMediaList(fallback);
+            });
+          }
+          setLoadingMapMedia(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          fetchIncidentMediaFromRepository(selectedMapIncident).then((fallback) => {
+            if (isMounted) {
+              setMapMediaList(fallback);
+              setLoadingMapMedia(false);
+            }
+          });
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedMapIncident]);
+
+  // Filtered in-map media items
+  const mapFilteredMedia = useMemo(() => {
+    return mapMediaList.filter((item) => {
+      if (mapMediaFilter === 'all') return true;
+      return item.type === mapMediaFilter;
+    });
+  }, [mapMediaList, mapMediaFilter]);
+
+  const activeMapMedia = mapFilteredMedia[mapActiveIndex] || mapFilteredMedia[0] || null;
+
+  const mapTotalDurationSec = useMemo(() => {
+    if (!activeMapMedia?.duration) return 45;
+    const parts = activeMapMedia.duration.split(':').map(Number);
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return 45;
+  }, [activeMapMedia]);
+
+  // In-map video simulation playback loop
+  useEffect(() => {
+    if (!isMapPlayingVideo || activeMapMedia?.type !== 'video') return;
+
+    const interval = setInterval(() => {
+      setMapVideoCurrentSec((prev) => {
+        const next = prev + 0.25 * mapPlaybackSpeed;
+        if (next >= mapTotalDurationSec) {
+          setMapVideoProgress(0);
+          return 0;
+        }
+        setMapVideoProgress((next / mapTotalDurationSec) * 100);
+        return next;
+      });
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [isMapPlayingVideo, activeMapMedia, mapTotalDurationSec, mapPlaybackSpeed]);
+
+  const handleMapPrevMedia = () => {
+    if (mapFilteredMedia.length <= 1) return;
+    setMapActiveIndex((prev) => (prev === 0 ? mapFilteredMedia.length - 1 : prev - 1));
+    setIsMapPlayingVideo(false);
+    setMapVideoProgress(0);
+    setMapVideoCurrentSec(0);
+  };
+
+  const handleMapNextMedia = () => {
+    if (mapFilteredMedia.length <= 1) return;
+    setMapActiveIndex((prev) => (prev === mapFilteredMedia.length - 1 ? 0 : prev + 1));
+    setIsMapPlayingVideo(false);
+    setMapVideoProgress(0);
+    setMapVideoCurrentSec(0);
+  };
+
+  const formatSecTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   // User Geolocation States
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -615,12 +765,20 @@ export const GisMap: React.FC<GisMapProps> = ({
             <div class="font-bold text-red-400">${incident.incidentCode} — ${incident.type} (${incident.severity})</div>
             <div class="text-slate-300 text-[11px] mt-0.5">${incident.description}</div>
             <div class="text-[10px] text-amber-300 mt-1">Impact: ${incident.aiClassification?.roadImpact || 'High'}</div>
+            <div class="mt-1 pt-1 border-t border-red-900 text-[9px] text-[#ff3e00] font-mono font-bold flex items-center gap-1">
+              <span>📸 Click to view Recon Carousel & feeds</span>
+            </div>
           </div>`,
           { sticky: true }
         );
 
         marker.on('click', () => {
-          if (onSelectIncident) onSelectIncident(incident);
+          setSelectedMapIncident(incident);
+          setShowMapMediaDrawer(true);
+          setIsMediaDrawerMinimized(false);
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.flyTo([incident.lat, incident.lng], 12, { duration: 0.8 });
+          }
         });
 
         markerLayerGroupRef.current?.addLayer(marker);
@@ -1238,6 +1396,35 @@ export const GisMap: React.FC<GisMapProps> = ({
           )}
         </div>
 
+        {/* Tactical Recon Feeds Button */}
+        <div className="relative">
+          <button
+            id="btn-gis-recon-feeds"
+            type="button"
+            onClick={() => {
+              if (!selectedMapIncident && incidents.length > 0) {
+                setSelectedMapIncident(incidents[0]);
+              }
+              setShowMapMediaDrawer(!showMapMediaDrawer);
+              setIsMediaDrawerMinimized(false);
+              setShowMapMenu(false);
+              setShowLocationMenu(false);
+            }}
+            className={`px-2.5 py-1.5 border-2 border-black shadow-[2px_2px_0px_#0a0a0a] transition-all flex items-center gap-1.5 text-xs font-black font-mono uppercase cursor-pointer ${
+              showMapMediaDrawer
+                ? 'bg-[#ff3e00] text-white shadow-[2px_2px_0px_#0a0a0a]'
+                : 'bg-white hover:bg-neutral-100 text-black'
+            }`}
+            title="Inspect 4K Drone, Dashcam & Satellite Feeds"
+          >
+            <Camera className={`w-4 h-4 shrink-0 ${showMapMediaDrawer ? 'text-white' : 'text-[#ff3e00]'}`} />
+            <span className="hidden sm:inline font-mono font-black">RECON FEEDS</span>
+            <span className={`px-1 py-0.2 text-[9px] font-black border ${showMapMediaDrawer ? 'bg-black text-white border-white' : 'bg-black text-white border-black'}`}>
+              {incidents.length}
+            </span>
+          </button>
+        </div>
+
         {/* 3-Line Menu Button */}
         <div className="relative">
           <button
@@ -1475,6 +1662,30 @@ export const GisMap: React.FC<GisMapProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Recon Feeds Quick Tool */}
+              <button
+                id="btn-menu-recon-feeds"
+                type="button"
+                onClick={() => {
+                  if (!selectedMapIncident && incidents.length > 0) {
+                    setSelectedMapIncident(incidents[0]);
+                  }
+                  setShowMapMediaDrawer(true);
+                  setIsMediaDrawerMinimized(false);
+                  setShowMapMenu(false);
+                }}
+                className="col-span-2 flex items-center justify-between px-2 py-2 text-[11px] font-mono font-black uppercase bg-[#f4f4f4] hover:bg-neutral-200 text-black border-2 border-black shadow-[2px_2px_0px_#0a0a0a] cursor-pointer"
+                title="Open 4K Recon Media Carousel & Feeds"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-[#ff3e00] shrink-0" />
+                  <span>Tactical Recon Feeds</span>
+                </div>
+                <span className="px-1.5 py-0.2 bg-[#ff3e00] text-white text-[9px] font-black border border-black">
+                  {incidents.length} Incidents
+                </span>
+              </button>
             </div>
           </div>
 
@@ -1531,6 +1742,378 @@ export const GisMap: React.FC<GisMapProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Floating In-Map Tactical Incident Recon Media Carousel Drawer */}
+      {showMapMediaDrawer && selectedMapIncident && (
+        <div
+          id="gis-recon-media-drawer"
+          className={`absolute top-14 right-3 z-30 bg-white border-2 border-black shadow-[5px_5px_0px_#0a0a0a] text-black font-mono pointer-events-auto transition-all ${
+            isMediaDrawerMinimized
+              ? 'w-72 max-w-[calc(100%-24px)]'
+              : 'w-84 sm:w-96 max-w-[calc(100%-24px)]'
+          }`}
+        >
+          {/* Header Bar */}
+          <div className="px-3 py-2 bg-[#0a0a0a] text-white flex items-center justify-between border-b-2 border-black">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#ff3e00] animate-pulse" />
+              <div className="flex items-center gap-1.5 text-xs font-black uppercase">
+                <Camera className="w-3.5 h-3.5 text-[#ff3e00]" />
+                <span>Recon Feed</span>
+                <span className="text-[#ff3e00]">{selectedMapIncident.incidentCode}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsMediaDrawerMinimized(!isMediaDrawerMinimized)}
+                className="w-6 h-6 flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 text-xs font-bold cursor-pointer"
+                title={isMediaDrawerMinimized ? 'Expand Recon Drawer' : 'Minimize'}
+              >
+                {isMediaDrawerMinimized ? '+' : '–'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMapMediaDrawer(false)}
+                className="w-6 h-6 flex items-center justify-center bg-neutral-800 hover:bg-[#ff3e00] text-white border border-neutral-700 text-xs font-bold cursor-pointer"
+                title="Close Recon Drawer"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          {/* Minimized Content */}
+          {isMediaDrawerMinimized ? (
+            <div className="p-2.5 bg-[#fbfbfb] flex items-center justify-between text-[11px]">
+              <div>
+                <span className="font-bold text-black">{selectedMapIncident.roadCode}</span>
+                <span className="text-neutral-500 ml-1">({selectedMapIncident.type})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMediaDrawerMinimized(false)}
+                className="px-2 py-0.5 bg-black text-white text-[10px] font-bold uppercase hover:bg-neutral-800 cursor-pointer"
+              >
+                Expand View
+              </button>
+            </div>
+          ) : (
+            /* Expanded Media Carousel Content */
+            <div className="p-3 space-y-2.5 max-h-[72vh] overflow-y-auto text-xs">
+              
+              {/* Incident Selector & Corridor Switcher */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px] text-neutral-600 font-bold uppercase">
+                  <span>Incident Corridor:</span>
+                  <span className="text-[#ff3e00] font-black">{selectedMapIncident.severity} Severity</span>
+                </div>
+                <select
+                  value={selectedMapIncident.id}
+                  onChange={(e) => {
+                    const match = incidents.find((inc) => inc.id === e.target.value);
+                    if (match) {
+                      setSelectedMapIncident(match);
+                      if (mapInstanceRef.current) {
+                        mapInstanceRef.current.flyTo([match.lat, match.lng], 12, { duration: 0.8 });
+                      }
+                    }
+                  }}
+                  className="w-full p-1.5 bg-[#f4f4f4] border-2 border-black text-xs font-bold font-mono cursor-pointer focus:outline-none focus:ring-0"
+                >
+                  {incidents.map((inc) => (
+                    <option key={inc.id} value={inc.id}>
+                      {inc.incidentCode} — {inc.roadCode} ({inc.type}, {inc.severity})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center justify-between gap-1 pt-1 border-t border-neutral-200">
+                <span className="text-[10px] text-neutral-500 uppercase font-bold">
+                  {mapMediaList.length} Archived Feeds
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setMapMediaFilter('all')}
+                    className={`px-1.5 py-0.5 text-[9px] font-bold uppercase border cursor-pointer ${
+                      mapMediaFilter === 'all'
+                        ? 'bg-[#ff3e00] text-white border-[#ff3e00]'
+                        : 'bg-neutral-100 text-neutral-700 border-neutral-300'
+                    }`}
+                  >
+                    All ({mapMediaList.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapMediaFilter('image')}
+                    className={`px-1.5 py-0.5 text-[9px] font-bold uppercase border cursor-pointer flex items-center gap-0.5 ${
+                      mapMediaFilter === 'image'
+                        ? 'bg-[#ff3e00] text-white border-[#ff3e00]'
+                        : 'bg-neutral-100 text-neutral-700 border-neutral-300'
+                    }`}
+                  >
+                    <Camera className="w-2.5 h-2.5" /> Photos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapMediaFilter('video')}
+                    className={`px-1.5 py-0.5 text-[9px] font-bold uppercase border cursor-pointer flex items-center gap-0.5 ${
+                      mapMediaFilter === 'video'
+                        ? 'bg-[#ff3e00] text-white border-[#ff3e00]'
+                        : 'bg-neutral-100 text-neutral-700 border-neutral-300'
+                    }`}
+                  >
+                    <Video className="w-2.5 h-2.5" /> Video
+                  </button>
+                </div>
+              </div>
+
+              {/* Carousel Viewport */}
+              {loadingMapMedia ? (
+                <div className="h-44 flex flex-col items-center justify-center bg-neutral-900 text-white space-y-2 p-4 border border-black">
+                  <div className="w-6 h-6 border-2 border-[#ff3e00] border-t-transparent animate-spin rounded-none" />
+                  <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">
+                    Connecting to Tactical Repository...
+                  </span>
+                </div>
+              ) : mapFilteredMedia.length === 0 ? (
+                <div className="h-36 flex flex-col items-center justify-center bg-neutral-100 text-neutral-500 p-4 border border-black text-center">
+                  <Camera className="w-6 h-6 mb-1 opacity-50" />
+                  <span className="text-[11px] font-bold">No media records found</span>
+                  <button
+                    onClick={() => setMapMediaFilter('all')}
+                    className="text-[10px] text-[#ff3e00] underline font-bold mt-1"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              ) : (
+                <div className="relative group bg-neutral-950 border border-black overflow-hidden">
+                  <div className="relative h-44 sm:h-48 flex items-center justify-center select-none overflow-hidden bg-neutral-900">
+                    {activeMapMedia && !mapImageErrorMap[activeMapMedia.id] ? (
+                      <img
+                        src={activeMapMedia.url}
+                        alt={activeMapMedia.title}
+                        referrerPolicy="no-referrer"
+                        onError={() => setMapImageErrorMap((prev) => ({ ...prev, [activeMapMedia.id]: true }))}
+                        className="w-full h-full object-cover transition-opacity duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full relative flex flex-col items-center justify-center bg-neutral-900 text-neutral-300 p-4 text-center">
+                        <Camera className="w-8 h-8 text-[#ff3e00] mb-1" />
+                        <span className="font-bold text-[11px] uppercase text-white">
+                          {activeMapMedia?.title || 'Tactical Recon Capture'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Top HUD Badges */}
+                    <div className="absolute top-0 inset-x-0 p-2 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between text-white text-[10px] font-mono z-10">
+                      <span className="bg-[#ff3e00] text-white px-1.5 py-0.5 text-[9px] font-black uppercase">
+                        {activeMapMedia?.type === 'video' ? 'VIDEO FEED' : '4K HIGH-RES'}
+                      </span>
+                      <span className="text-white font-mono font-bold text-[10px] tabular-nums bg-black/60 px-1 py-0.2">
+                        {String(mapActiveIndex + 1).padStart(2, '0')} / {String(mapFilteredMedia.length).padStart(2, '0')}
+                      </span>
+                    </div>
+
+                    {/* Video Player in Map */}
+                    {activeMapMedia?.type === 'video' && (
+                      <div className="absolute inset-0 z-20 flex flex-col justify-between">
+                        {!isMapPlayingVideo ? (
+                          <div className="m-auto flex flex-col items-center">
+                            <button
+                              type="button"
+                              onClick={() => setIsMapPlayingVideo(true)}
+                              className="w-11 h-11 rounded-full bg-[#ff3e00] hover:bg-white text-white hover:text-black border-2 border-black flex items-center justify-center shadow-[3px_3px_0px_#0a0a0a] cursor-pointer transition transform hover:scale-105"
+                            >
+                              <Play className="w-5 h-5 ml-0.5 fill-current" />
+                            </button>
+                            <span className="mt-1 px-1.5 py-0.2 bg-black/80 text-white text-[9px] font-bold uppercase border border-white/20">
+                              Play Telemetry · {activeMapMedia.duration || '0:48'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="w-full h-full flex flex-col justify-between p-2 bg-black/20 pointer-events-none">
+                            <div className="flex items-center justify-between text-white text-[9px] font-mono">
+                              <span className="text-red-500 font-bold flex items-center gap-1 animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" /> REC [LIVE]
+                              </span>
+                              <span className="bg-black/60 px-1">
+                                ALT {activeMapMedia.cameraMetadata?.altitudeMeters || 148}M
+                              </span>
+                            </div>
+                            <div className="text-white text-[9px] font-mono flex items-center justify-between bg-black/70 px-1.5 py-0.5">
+                              <span>GPS: {selectedMapIncident.lat.toFixed(4)}°, {selectedMapIncident.lng.toFixed(4)}°</span>
+                              <span>{formatSecTime(mapVideoCurrentSec)} / {formatSecTime(mapTotalDurationSec)}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Scrubber Bar */}
+                        <div className="p-1.5 bg-neutral-950/95 border-t border-neutral-800 text-white flex items-center gap-1.5 z-30">
+                          <button
+                            type="button"
+                            onClick={() => setIsMapPlayingVideo(!isMapPlayingVideo)}
+                            className="w-6 h-6 flex items-center justify-center bg-neutral-800 text-white cursor-pointer"
+                          >
+                            {isMapPlayingVideo ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 fill-current" />}
+                          </button>
+                          <div
+                            className="flex-1 h-1.5 bg-neutral-800 cursor-pointer relative"
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const pos = (e.clientX - rect.left) / rect.width;
+                              const clamped = Math.max(0, Math.min(1, pos));
+                              setMapVideoCurrentSec(clamped * mapTotalDurationSec);
+                              setMapVideoProgress(clamped * 100);
+                            }}
+                          >
+                            <div className="h-full bg-[#ff3e00]" style={{ width: `${mapVideoProgress}%` }} />
+                          </div>
+                          <span className="text-[9px] text-neutral-300 font-mono tabular-nums">
+                            {formatSecTime(mapVideoCurrentSec)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Prev / Next Carousel Controls */}
+                    {mapFilteredMedia.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleMapPrevMedia}
+                          aria-label="Previous record"
+                          className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center bg-black/80 hover:bg-[#ff3e00] text-white border border-black cursor-pointer z-30"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleMapNextMedia}
+                          aria-label="Next record"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center bg-black/80 hover:bg-[#ff3e00] text-white border border-black cursor-pointer z-30"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Caption & Metadata in Card */}
+                  {activeMapMedia && (
+                    <div className="p-2 bg-white border-t border-black space-y-1">
+                      <div className="font-black text-xs uppercase text-black truncate">
+                        {activeMapMedia.title}
+                      </div>
+                      <div className="text-[10px] text-neutral-600 flex items-center justify-between">
+                        <span>{activeMapMedia.source}</span>
+                        <span>{activeMapMedia.timestamp}</span>
+                      </div>
+                      <p className="text-[10px] text-neutral-800 font-medium line-clamp-2">
+                        {activeMapMedia.description}
+                      </p>
+
+                      <div className="pt-1 flex items-center justify-between text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => setShowMapSensorTelemetry(!showMapSensorTelemetry)}
+                          className="text-[#ff3e00] font-bold underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Info className="w-2.5 h-2.5" />
+                          {showMapSensorTelemetry ? 'Hide Sensor Data' : 'Sensor Telemetry'}
+                        </button>
+                        <span className="text-neutral-500 font-mono">{activeMapMedia.fileSizeBytes}</span>
+                      </div>
+
+                      {showMapSensorTelemetry && activeMapMedia.cameraMetadata && (
+                        <div className="p-1.5 bg-[#f4f4f4] border border-neutral-300 text-[9px] space-y-0.5 text-neutral-700 font-mono">
+                          <div>Device: <strong className="text-black">{activeMapMedia.cameraMetadata.device || 'NER Recon Unit'}</strong></div>
+                          <div>Optics: <strong className="text-black">{activeMapMedia.cameraMetadata.focalLength || 'Wide'}</strong></div>
+                          <div>Altitude AGL: <strong className="text-black">{activeMapMedia.cameraMetadata.altitudeMeters || 140}m</strong></div>
+                          <div>Heading: <strong className="text-black">{activeMapMedia.cameraMetadata.azimuthDeg || 180}°</strong></div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Thumbnail Strip Carousel */}
+                  {mapFilteredMedia.length > 1 && (
+                    <div className="p-1.5 bg-[#f4f4f4] border-t border-black flex items-center gap-1.5 overflow-x-auto">
+                      {mapFilteredMedia.map((item, idx) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setMapActiveIndex(idx);
+                            setIsMapPlayingVideo(false);
+                            setMapVideoProgress(0);
+                            setMapVideoCurrentSec(0);
+                          }}
+                          className={`relative w-12 h-9 border flex-shrink-0 cursor-pointer overflow-hidden ${
+                            idx === mapActiveIndex
+                              ? 'border-[#ff3e00] border-2 shadow-[1px_1px_0px_#0a0a0a]'
+                              : 'border-neutral-400 opacity-70 hover:opacity-100'
+                          }`}
+                        >
+                          <img
+                            src={item.thumbnailUrl}
+                            alt={item.title}
+                            referrerPolicy="no-referrer"
+                            onError={() => setMapImageErrorMap((prev) => ({ ...prev, [item.id]: true }))}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                            {item.type === 'video' ? (
+                              <Play className="w-2.5 h-2.5 text-white fill-current" />
+                            ) : (
+                              <Camera className="w-2.5 h-2.5 text-white" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Bottom Action Buttons */}
+              <div className="pt-1 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (mapInstanceRef.current && selectedMapIncident) {
+                      mapInstanceRef.current.flyTo([selectedMapIncident.lat, selectedMapIncident.lng], 13, { duration: 1.0 });
+                    }
+                  }}
+                  className="flex-1 py-1.5 bg-[#f4f4f4] hover:bg-neutral-200 border-2 border-black text-black font-black uppercase text-[10px] flex items-center justify-center gap-1 cursor-pointer transition shadow-[1px_1px_0px_#0a0a0a]"
+                >
+                  <Crosshair className="w-3 h-3 text-[#ff3e00]" /> Center Map
+                </button>
+
+                {onSelectIncident && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedMapIncident) {
+                        onSelectIncident(selectedMapIncident);
+                      }
+                    }}
+                    className="flex-1 py-1.5 bg-black hover:bg-[#ff3e00] text-white font-black uppercase text-[10px] flex items-center justify-center gap-1 cursor-pointer transition shadow-[1px_1px_0px_#0a0a0a]"
+                  >
+                    <ExternalLink className="w-3 h-3" /> Full Intel Report
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

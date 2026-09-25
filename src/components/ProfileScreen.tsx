@@ -78,7 +78,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
         <button
           onClick={onLogout}
-          className="px-4 py-2 bg-white hover:bg-neutral-100 text-black border-2 border-black shadow-[2px_2px_0px_#0a0a0a] text-xs font-black uppercase transition flex items-center gap-1.5 self-stretch sm:self-auto"
+          className="px-4 py-2 bg-white hover:bg-neutral-100 text-black border-2 border-black shadow-[2px_2px_0px_#0a0a0a] text-xs font-black uppercase transition flex items-center gap-1.5 self-stretch sm:self-auto cursor-pointer"
         >
           <LogOut className="w-4 h-4 text-[#ff3e00]" />
           {t.actions.logout}

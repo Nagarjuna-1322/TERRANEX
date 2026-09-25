@@ -115,6 +115,30 @@ export type IncidentType =
 
 export type IncidentSeverity = 'Low' | 'Medium' | 'High' | 'Critical';
 
+export interface IncidentMediaItem {
+  id: string;
+  incidentId: string;
+  type: 'image' | 'video';
+  title: string;
+  description: string;
+  source: string;
+  timestamp: string;
+  resolution: string;
+  url: string;
+  thumbnailUrl: string;
+  duration?: string;
+  videoPoster?: string;
+  fileSizeBytes?: string;
+  cameraMetadata?: {
+    device?: string;
+    focalLength?: string;
+    altitudeMeters?: number;
+    azimuthDeg?: number;
+    coordinates?: [number, number];
+  };
+  tags: string[];
+}
+
 export interface Incident {
   id: string;
   incidentCode: string; // e.g. #INC-2041
@@ -130,6 +154,7 @@ export interface Incident {
   status: 'ACTIVE' | 'INVESTIGATING' | 'RESOLVED';
   description: string;
   imageUrl?: string;
+  mediaItems?: IncidentMediaItem[];
   aiClassification?: {
     incidentType: IncidentType;
     severity: IncidentSeverity;

@@ -12,9 +12,10 @@ import {
   INITIAL_ALERTS,
   INITIAL_AUDIT_LOGS,
   TA_WANG_ROUTE_OPTIONS
-} from './src/data/nerData';
-import { INITIAL_INDIA_NEWS_ARTICLES, analyzeIndianNewsText, INDIA_HIGHWAY_DIRECTORY } from './src/data/newsData';
-import { Road, Vehicle, Delivery, Incident, Alert, AuditLog, SimulationParams, SimulationResult, NewsArticle } from './src/types';
+} from './src/data/nerData.ts';
+import { INITIAL_INDIA_NEWS_ARTICLES, analyzeIndianNewsText, INDIA_HIGHWAY_DIRECTORY } from './src/data/newsData.ts';
+import { Road, Vehicle, Delivery, Incident, Alert, AuditLog, SimulationParams, SimulationResult, NewsArticle } from './src/types.ts';
+import { generateMediaForIncident } from './src/services/mediaRepository.ts';
 
 // In-memory operational store with deep copy so demo updates persist across requests
 let roads: Road[] = JSON.parse(JSON.stringify(INITIAL_ROADS));
@@ -293,6 +294,16 @@ app.use(express.json({ limit: '10mb' }));
   // 6. Incidents endpoints
   app.get('/api/incidents', (req: Request, res: Response) => {
     res.json({ incidents });
+  });
+
+  app.get('/api/incidents/:id/media', (req: Request, res: Response) => {
+    const incidentId = req.params.id;
+    const inc = incidents.find((i) => i.id === incidentId);
+    if (!inc) {
+      return res.status(404).json({ error: 'Incident not found' });
+    }
+    const media = generateMediaForIncident(inc);
+    res.json({ success: true, incidentId, media });
   });
 
   app.post('/api/incidents', (req: Request, res: Response) => {

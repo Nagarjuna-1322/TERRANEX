@@ -32,16 +32,19 @@ import { DistrictIntelligenceModal } from './components/DistrictIntelligenceModa
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { EmergencyModeOverlay } from './components/EmergencyModeOverlay';
 import { PullToRefresh } from './components/PullToRefresh';
+import { CloudStorageService } from './services/cloudStorage';
+import { auth, mapFirebaseUserToAppUser } from './services/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 import { Play, Sliders, MapPin, Truck, RefreshCw, Newspaper, Globe, Sparkles } from 'lucide-react';
 
 export default function App() {
-  // Navigation & Screen Flow States
-  const [showSplash, setShowSplash] = useState<boolean>(true);
+  // Navigation & Screen Flow States: Open directly to Login screen
+  const [showSplash, setShowSplash] = useState<boolean>(false);
   const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => {
     return localStorage.getItem('tnx_onboarded') === 'true';
   });
-  const [currentUser, setCurrentUser] = useState<User | null>(INITIAL_USER);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<string>('home');
   const [lang, setLang] = useState<Language>('en');
   const [simpleMode, setSimpleMode] = useState<boolean>(true);
@@ -72,6 +75,16 @@ export default function App() {
   const [emergencyMode, setEmergencyMode] = useState<boolean>(false);
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
 
+  // Auto-sync with Firebase auth observer
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        setCurrentUser(mapFirebaseUserToAppUser(fbUser));
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Layout View Mode (Mobile Phone View by default)
   const [isWideLayout, setIsWideLayout] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -94,7 +107,7 @@ export default function App() {
   const [showDemoController, setShowDemoController] = useState<boolean>(false);
   const [currentDemoStep, setCurrentDemoStep] = useState<number>(1);
 
-  // Load live data from server on startup
+  // Load live data from server & cloud storage on startup
   const refreshData = useCallback(async () => {
     try {
       const data = await api.getInitialData();
@@ -115,6 +128,36 @@ export default function App() {
     } catch (err) {
       console.warn('Using seeded news articles offline:', err);
     }
+
+    // Check Cloud Storage Persistence (Firebase Firestore)
+    try {
+      const cloudStats = await CloudStorageService.getCloudStorageStats();
+      if (cloudStats.totalRecords === 0) {
+        // Automatically seed complete data to Cloud Firestore if cloud database is empty
+        await CloudStorageService.uploadCompleteDataToCloud({
+          roads: INITIAL_ROADS,
+          vehicles: INITIAL_VEHICLES,
+          deliveries: INITIAL_DELIVERIES,
+          incidents: INITIAL_INCIDENTS,
+          alerts: INITIAL_ALERTS,
+          weather: INITIAL_WEATHER,
+          newsArticles: INITIAL_INDIA_NEWS_ARTICLES
+        });
+      } else {
+        // Cloud has existing persistence! Merge live cloud data
+        const cloudData = await CloudStorageService.fetchCompleteDataFromCloud();
+        if (cloudData.roads.length > 0) setRoads(cloudData.roads);
+        if (cloudData.vehicles.length > 0) setVehicles(cloudData.vehicles);
+        if (cloudData.deliveries.length > 0) setDeliveries(cloudData.deliveries);
+        if (cloudData.incidents.length > 0) setIncidents(cloudData.incidents);
+        if (cloudData.alerts.length > 0) setAlerts(cloudData.alerts);
+        if (cloudData.weather.length > 0) setWeather(cloudData.weather);
+        if (cloudData.newsArticles.length > 0) setNewsArticles(cloudData.newsArticles);
+      }
+    } catch (cloudErr) {
+      console.warn('Cloud Storage sync:', cloudErr);
+    }
+
     setPendingSyncCount(OfflineSyncService.getQueue().length);
   }, []);
 
@@ -282,6 +325,13 @@ export default function App() {
       // Trigger dynamic reroute alert for convoy pilots
       setShowDynamicReroute(true);
     }
+
+    // Persist to Cloud Firestore
+    CloudStorageService.updateRoadStatus(
+      road.id,
+      isNowBlocked ? 'BLOCKED' : 'ACCESSIBLE',
+      isNowBlocked ? 'Blocked' : 'Accessible'
+    ).catch((e) => console.warn('Cloud update road:', e));
   };
 
   // Accept Reroute Action
@@ -293,12 +343,17 @@ export default function App() {
         if (res.vehicle) {
           setVehicles((prev) => prev.map((item) => (item.id === res.vehicle.id ? res.vehicle : item)));
         }
+        CloudStorageService.rerouteVehicle(v.id, {
+          status: 'REROUTED',
+          eta: '5h 52m',
+          riskLevel: 'LOW'
+        }).catch((e) => console.warn('Cloud reroute vehicle:', e));
       }
     } catch {
       setVehicles((prev) =>
         prev.map((v) =>
           v.vehicleNumber === 'TNX-1042'
-            ? { ...v, status: 'REROUTED', eta: '5h 52m', riskScore: 24 }
+            ? { ...v, status: 'REROUTED', eta: '5h 52m', riskLevel: 'LOW' }
             : v
         )
       );
@@ -317,24 +372,21 @@ export default function App() {
     }
   };
 
-  // Flow checks
+  // Flow checks: Open LoginScreen immediately on startup so user completes authentication
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
-  if (!hasOnboarded) {
+  if (!currentUser) {
     return (
-      <OnboardingScreen
-        onComplete={() => {
+      <LoginScreen
+        onLoginSuccess={(u) => {
+          setCurrentUser(u);
           localStorage.setItem('tnx_onboarded', 'true');
           setHasOnboarded(true);
         }}
       />
     );
-  }
-
-  if (!currentUser) {
-    return <LoginScreen onLoginSuccess={(u) => setCurrentUser(u)} />;
   }
 
   const unreadAlertCount = alerts.filter((a) => !a.acknowledged).length;
@@ -528,6 +580,7 @@ export default function App() {
               newsArticles={newsArticles}
               selectedRoadId={selectedRoad?.id}
               selectedVehicleId={null}
+              selectedIncidentId={selectedIncident?.id}
               emergencyModeActive={emergencyMode}
               lang={lang}
               onSelectRoad={(r) => setSelectedRoad(r)}
@@ -745,6 +798,7 @@ export default function App() {
             setIncidents((prev) => [newInc, ...prev]);
             setShowReportModal(false);
             setPendingSyncCount(OfflineSyncService.getQueue().length);
+            CloudStorageService.saveIncident(newInc).catch((e) => console.warn('Cloud save incident:', e));
           }}
           isOnline={isOnline}
         />

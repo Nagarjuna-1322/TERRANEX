@@ -66,6 +66,15 @@ export default function App() {
   const [selectedRoad, setSelectedRoad] = useState<Road | null>(null);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
+
+  // Google Maps Quota Defense state (listen to gmp-quota-exceeded)
+  const [gmpQuotaExceeded, setGmpQuotaExceeded] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleQuota = () => setGmpQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', handleQuota);
+    return () => window.removeEventListener('gmp-quota-exceeded', handleQuota);
+  }, []);
   const [showRouteComparison, setShowRouteComparison] = useState<boolean>(false);
   const [showDynamicReroute, setShowDynamicReroute] = useState<boolean>(false);
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
@@ -393,6 +402,24 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full bg-[#f8f9fa] text-[#0a0a0a] flex flex-col font-sans selection:bg-[#ff3e00] selection:text-white relative">
+      {/* Google Maps Quota Defense Banner */}
+      {gmpQuotaExceeded && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm">
+          <span>
+            Google Maps Platform quota reached. If you are the app owner, visit{' '}
+            <a
+              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-amber-950 hover:text-amber-800"
+            >
+              maps developer site
+            </a>{' '}
+            for instructions to update your account.
+          </span>
+        </div>
+      )}
+
       {/* Top Header Navigation with Prominent Language Switcher */}
         <TopNavigation
           currentUser={currentUser}

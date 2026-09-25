@@ -136,7 +136,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({ isOpen, on
 
   const toggleVoiceInput = () => {
     if (!recognitionRef.current) {
-      alert('Speech recognition is not supported in this browser. Please type your query.');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sys-${Date.now()}`,
+          sender: 'ai',
+          text: 'Speech recognition is not supported in this browser. Please type your query.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
       return;
     }
 

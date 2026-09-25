@@ -580,7 +580,16 @@ export const GisMap: React.FC<GisMapProps> = ({
   // GPS Locate User
   const handleLocateUser = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
+      const fallbackLoc: UserLocation = {
+        lat: 26.1445,
+        lng: 91.7362,
+        accuracy: 25,
+        timestamp: Date.now(),
+        source: 'preset'
+      };
+      setUserLocation(fallbackLoc);
+      setCameraCenter({ lat: fallbackLoc.lat, lng: fallbackLoc.lng });
+      setCameraZoom(12);
       return;
     }
     setLocatingUser(true);

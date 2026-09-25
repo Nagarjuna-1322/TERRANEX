@@ -86,12 +86,23 @@ export default function App() {
 
   // Auto-sync with Firebase auth observer
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
-      if (fbUser) {
-        setCurrentUser(mapFirebaseUserToAppUser(fbUser));
-      }
-    });
-    return () => unsubscribe();
+    if (!auth) return;
+    try {
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        (fbUser) => {
+          if (fbUser) {
+            setCurrentUser(mapFirebaseUserToAppUser(fbUser));
+          }
+        },
+        (authErr) => {
+          console.warn('Firebase onAuthStateChanged notice:', authErr);
+        }
+      );
+      return () => unsubscribe();
+    } catch (err) {
+      console.warn('Could not register auth observer:', err);
+    }
   }, []);
 
   // Layout View Mode (Mobile Phone View by default)

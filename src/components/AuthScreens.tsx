@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { api } from '../services/api';
 import { signInWithGoogle, auth, sendPasswordReset } from '../services/firebase';
-import { sendPasswordResetEmail } from 'firebase/auth';
 import {
   Truck,
   ShieldCheck,
@@ -177,32 +176,20 @@ export const LoginScreen: React.FC<AuthScreensProps> = ({ onLoginSuccess }) => {
     setForgotMsg('');
 
     try {
-      // Use Firebase sendPasswordResetEmail to dispatch reset link
-      await sendPasswordResetEmail(auth, targetEmail);
-      setSentToEmail(targetEmail);
-      setForgotStatus('success');
-      setForgotMsg(`Password reset instructions have been dispatched to ${targetEmail}.`);
-    } catch (err: any) {
-      console.warn('Firebase sendPasswordResetEmail error:', err);
-      const code = err?.code || '';
-      let message = 'Failed to dispatch reset email. Please try again.';
-
-      if (code === 'auth/user-not-found') {
-        message = 'No registered account found matching this email address.';
-      } else if (code === 'auth/invalid-email') {
-        message = 'Please enter a valid email address.';
-      } else if (code === 'auth/missing-email') {
-        message = 'Email address cannot be empty.';
-      } else if (code === 'auth/too-many-requests') {
-        message = 'Too many requests. Please wait a few moments before trying again.';
-      } else if (code === 'auth/network-request-failed') {
-        message = 'Network communication error. Please check your internet connection.';
-      } else if (err?.message) {
-        message = err.message;
+      // Use Firebase sendPasswordReset wrapper to safely dispatch reset link
+      const result = await sendPasswordReset(targetEmail);
+      if (result.success) {
+        setSentToEmail(targetEmail);
+        setForgotStatus('success');
+        setForgotMsg(result.message);
+      } else {
+        setForgotStatus('error');
+        setForgotMsg(result.message);
       }
-
+    } catch (err: any) {
+      console.warn('sendPasswordReset error:', err);
       setForgotStatus('error');
-      setForgotMsg(message);
+      setForgotMsg(err instanceof Error ? err.message : 'Failed to dispatch reset email. Please try again.');
     }
   };
 

@@ -23,8 +23,7 @@ import { User, UserRole } from '../types';
 const resolvedApiKey =
   (firebaseConfig as { apiKey?: string }).apiKey ||
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_API_KEY) ||
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_MAPS_API_KEY) ||
-  'AIzaSyCDP_opFu_d2KaDa7v7IUhTFVHzRRliQuI';
+  (typeof import.meta !== 'undefined' && 
 
 const effectiveFirebaseConfig = {
   ...firebaseConfig,

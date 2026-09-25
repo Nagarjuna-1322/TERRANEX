@@ -25,6 +25,8 @@ const resolvedApiKey =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_API_KEY) ||
   (typeof import.meta !== 'undefined' && 
 
+import.meta.env?.VITE_GOOGLE_MAPS_API_KEY) ||
+  ';
 const effectiveFirebaseConfig = {
   ...firebaseConfig,
   apiKey: resolvedApiKey

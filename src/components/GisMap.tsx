@@ -9,6 +9,7 @@ import {
   useMapsLibrary
 } from '@vis.gl/react-google-maps';
 import { Road, Vehicle, Incident, IncidentMediaItem, NewsArticle, UserLocation } from '../types';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { Language, TRANSLATIONS, getLocalizedHighwayName, getLocalizedIncidentType, getLocalizedSeverity } from '../translations';
 import {
   Layers,
@@ -673,8 +674,11 @@ export const GisMap: React.FC<GisMapProps> = ({
     }
   };
 
-  // Google Maps API Key from env
-  const apiKey = (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
+  // Google Maps API Key from env with fallback to provisioned key
+  const apiKey =
+    (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY ||
+    (firebaseConfig as { apiKey?: string })?.apiKey ||
+    '';
 
   return (
     <div className="relative w-full border-2 border-black bg-neutral-900 shadow-[4px_4px_0px_#0a0a0a] overflow-hidden flex flex-col">

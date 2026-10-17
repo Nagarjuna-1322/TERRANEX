@@ -1,118 +1,38 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function admin() { return signedIn() && (request.auth.token.get('admin', false) == true || request.auth.token.get('role', '') == 'authority'); }
+    function operator() { return signedIn() && (admin() || request.auth.token.get('role', '') in ['field_officer', 'driver', 'analyst']); }
+    function owner(id) { return signedIn() && request.auth.uid == id; }
+    function validId(id) { return id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$'); }
+    match /test/connection { allow get: if true; }
+    // Admin claims and registry entries may only be provisioned by a trusted server.
+    match /admins/{id} {
+      allow get: if owner(id) || admin();
+      allow list: if admin();
+      allow write: if false;
     }
-
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'mmnagarjunareddy@gmail.com' ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-      );
+    match /users/{id} {
+      allow get: if owner(id) || admin();
+      allow list: if admin();
+      allow create: if owner(id) && validId(id)
+        && request.resource.data.keys().hasOnly(['id', 'name', 'email', 'phone', 'avatar', 'updatedAt'])
+        && request.resource.data.id == id
+        && request.resource.data.email == request.auth.token.email;
+      allow update: if owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'avatar', 'updatedAt']);
+      allow delete: if admin();
     }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    match /{collection}/{id} {
+      allow read: if operator() && collection in ['roads', 'vehicles', 'deliveries', 'incidents', 'alerts', 'weather', 'newsArticles', 'cloudSyncMeta'];
+      // Operational writes go through the validated API; only authorities can sync snapshots.
+      allow create, update: if admin() && validId(id) && collection in ['roads', 'vehicles', 'deliveries', 'incidents', 'alerts', 'weather', 'newsArticles', 'cloudSyncMeta'];
+      allow delete: if admin() && collection in ['roads', 'vehicles', 'deliveries', 'incidents', 'alerts', 'weather', 'newsArticles', 'cloudSyncMeta'];
     }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    match /auditLogs/{id} {
+      allow read: if admin();
+      allow write: if false;
     }
-
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Connection testing docs
-    match /test/{docId} {
-      allow read: if isSignedIn();
-    }
-
-    // Admin registry
-    match /admins/{adminId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
-    }
-
-    // User profiles
-    match /users/{userId} {
-      allow create: if isSignedIn() && isOwner(userId);
-      allow get, list: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow delete: if isAdmin();
-    }
-
-    // Roads
-    match /roads/{roadId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(roadId);
-      allow update: if isSignedIn() && isValidId(roadId);
-      allow delete: if isAdmin();
-    }
-
-    // Vehicles
-    match /vehicles/{vehicleId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(vehicleId);
-      allow update: if isSignedIn() && isValidId(vehicleId);
-      allow delete: if isAdmin();
-    }
-
-    // Deliveries
-    match /deliveries/{deliveryId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(deliveryId);
-      allow update: if isSignedIn() && isValidId(deliveryId);
-      allow delete: if isAdmin();
-    }
-
-    // Incidents
-    match /incidents/{incidentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(incidentId);
-      allow update: if isSignedIn() && isValidId(incidentId);
-      allow delete: if isAdmin();
-    }
-
-    // Alerts
-    match /alerts/{alertId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(alertId);
-      allow update: if isSignedIn() && isValidId(alertId);
-      allow delete: if isAdmin();
-    }
-
-    // Weather
-    match /weather/{weatherId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(weatherId);
-      allow update: if isSignedIn() && isValidId(weatherId);
-      allow delete: if isAdmin();
-    }
-
-    // News articles
-    match /newsArticles/{articleId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(articleId);
-      allow update: if isSignedIn() && isValidId(articleId);
-      allow delete: if isAdmin();
-    }
-
-    // Audit logs
-    match /auditLogs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin();
-    }
-
-    // Cloud sync metadata
-    match /cloudSyncMeta/{metaId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidId(metaId);
-    }
+    match /{document=**} { allow read, write: if false; }
   }
 }

@@ -6,6 +6,9 @@ import {
   signOut,
   onAuthStateChanged,
   User as FirebaseUser,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import {
@@ -21,12 +24,16 @@ import { User, UserRole } from '../types';
 
 // Ensure apiKey is always present in Firebase configuration
 const resolvedApiKey =
+  import.meta.env?.VITE_FIREBASE_API_KEY ||
   (firebaseConfig as { apiKey?: string }).apiKey ||
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_API_KEY) ||
   '';
 const effectiveFirebaseConfig = {
   ...firebaseConfig,
-  apiKey: resolvedApiKey
+  apiKey: resolvedApiKey,
+  projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+  appId: import.meta.env?.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+  authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+  storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket
 };
 
 // Initialize Firebase App
@@ -34,7 +41,7 @@ export const app = getApps().length === 0 ? initializeApp(effectiveFirebaseConfi
 
 // CRITICAL: Must specify firestoreDatabaseId and use experimentalForceLongPolling
 // to prevent 10s WebChannel timeout in proxy and sandboxed environments
-const dbId = (firebaseConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId || 'ai-studio-terranex-8d5fce7b-58e1-4e3f-aee3-63975d069887';
+const dbId = import.meta.env?.VITE_FIREBASE_DATABASE_ID || (firebaseConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId || '(default)';
 
 let firestoreInstance: ReturnType<typeof getFirestore>;
 try {
@@ -83,25 +90,8 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth?.currentUser?.uid,
-      email: auth?.currentUser?.email,
-      emailVerified: auth?.currentUser?.emailVerified,
-      isAnonymous: auth?.currentUser?.isAnonymous,
-      tenantId: auth?.currentUser?.tenantId,
-      providerInfo:
-        auth?.currentUser?.providerData?.map((provider) => ({
-          providerId: provider.providerId,
-          email: provider.email
-        })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.error('Firestore operation failed', { operationType, path });
+  throw new Error('Unable to access cloud data. Check your connection and permissions.');
 }
 
 /**
@@ -116,8 +106,7 @@ export async function testConnection(): Promise<{ connected: boolean; error?: st
       console.error('Please check your Firebase configuration.');
       return { connected: false, error: 'The client is offline' };
     }
-    // If doc doesn't exist, connection succeeded as long as not offline
-    return { connected: true };
+    return { connected: false, error: 'Unable to connect to Firestore' };
   }
 }
 
@@ -127,86 +116,42 @@ testConnection().catch(() => {});
 /**
  * Map Firebase user to TerraNex App User
  */
-export function mapFirebaseUserToAppUser(fbUser: FirebaseUser, requestedRole?: UserRole): User {
-  // If user is mmnagarjunareddy@gmail.com, default to top authority role
-  const isTargetAdmin = fbUser.email?.toLowerCase() === 'mmnagarjunareddy@gmail.com';
-  const role: UserRole = requestedRole || (isTargetAdmin ? 'authority' : 'field_officer');
-
+export async function mapFirebaseUserToAppUser(fbUser: FirebaseUser, _requestedRole?: UserRole): Promise<User> {
+  const { claims } = await fbUser.getIdTokenResult();
+  if (claims.admin !== true && !['authority', 'field_officer', 'driver', 'analyst'].includes(String(claims.role))) {
+    throw new Error('Account created. Ask your administrator to assign an operational role, then sign in again.');
+  }
+  const role: UserRole = claims.admin === true ? 'authority' :
+    ['authority', 'field_officer', 'driver', 'analyst'].includes(String(claims.role)) ? claims.role as UserRole : 'driver';
   return {
-    id: fbUser.uid,
-    name: fbUser.displayName || (isTargetAdmin ? 'M. Nagarjuna Reddy' : (fbUser.email?.split('@')[0] || 'Command Officer')),
-    employeeId: `NER-AUTH-${fbUser.uid.slice(0, 6).toUpperCase()}`,
-    email: fbUser.email || '',
-    phone: fbUser.phoneNumber || '+91 94350 00000',
-    role: role,
-    organization: isTargetAdmin
-      ? 'NER Disaster Management & Transport Authority (HQ)'
-      : 'Border Roads Task Force 88 / Inspection Wing',
-    state: 'Assam',
-    district: 'Kamrup Metropolitan (Guwahati)',
-    avatar: fbUser.photoURL || undefined
+    id: fbUser.uid, name: fbUser.displayName || 'TerraNex User', employeeId: '',
+    email: fbUser.email || '', phone: fbUser.phoneNumber || '', role,
+    organization: '', state: '', district: '', avatar: fbUser.photoURL || undefined
   };
 }
 
-/**
- * Google Sign-In with popup
- */
-export async function signInWithGoogle(desiredRole?: UserRole): Promise<{ success: boolean; user?: User; error?: string }> {
+export async function signInWithGoogle(_desiredRole?: UserRole): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
-    if (!auth) {
-      console.warn('Firebase Auth is not available. Using default authorized role session.');
-      const fallbackOwner: User = {
-        id: 'usr-auth-nagarjuna',
-        name: 'M. Nagarjuna Reddy',
-        employeeId: 'NER-HQ-DIRECTOR',
-        email: 'mmnagarjunareddy@gmail.com',
-        phone: '+91 94350 99881',
-        role: desiredRole || 'authority',
-        organization: 'NER Disaster Management & Transport Authority (HQ)',
-        state: 'Assam',
-        district: 'Kamrup Metropolitan (Guwahati)'
-      };
-      return { success: true, user: fallbackOwner };
-    }
-
+    if (!auth) throw new Error('Authentication is unavailable. Please try again later.');
     const result = await signInWithPopup(auth, googleProvider);
-    const appUser = mapFirebaseUserToAppUser(result.user, desiredRole);
-
-    // Save/update user profile in Firestore
-    try {
-      const userRef = doc(db, 'users', result.user.uid);
-      await setDoc(userRef, {
-        id: appUser.id,
-        name: appUser.name,
-        employeeId: appUser.employeeId,
-        email: appUser.email,
-        phone: appUser.phone,
-        role: appUser.role,
-        organization: appUser.organization,
-        state: appUser.state,
-        district: appUser.district,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-
-      // If target admin, ensure admin record exists
-      if (result.user.email?.toLowerCase() === 'mmnagarjunareddy@gmail.com') {
-        const adminRef = doc(db, 'admins', result.user.uid);
-        await setDoc(adminRef, {
-          uid: result.user.uid,
-          email: result.user.email,
-          role: 'super_admin',
-          grantedAt: new Date().toISOString()
-        }, { merge: true });
-      }
-    } catch (saveErr) {
-      console.warn('Could not persist profile in Firestore users collection:', saveErr);
-    }
-
-    return { success: true, user: appUser };
+    return { success: true, user: await mapFirebaseUserToAppUser(result.user) };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Google authentication failed';
-    return { success: false, error: msg };
+    return { success: false, error: error instanceof Error ? error.message : 'Authentication failed' };
   }
+}
+
+export async function signInWithEmail(email: string, password: string): Promise<{ success: boolean; token: string; user: User; error?: string }> {
+  if (!auth) throw new Error('Authentication is unavailable.');
+  const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return { success: true, token: await result.user.getIdToken(), user: await mapFirebaseUserToAppUser(result.user) };
+}
+
+export async function registerWithEmail(data: { email: string; password: string; name?: string }): Promise<{ success: boolean; token: string; user: User; error?: string }> {
+  if (!auth) throw new Error('Authentication is unavailable.');
+  const result = await createUserWithEmailAndPassword(auth, data.email.trim(), data.password);
+  if (data.name) await updateProfile(result.user, { displayName: data.name.slice(0, 200) });
+  // Operational roles are assigned by administrators using custom claims.
+  return { success: true, token: await result.user.getIdToken(), user: await mapFirebaseUserToAppUser(result.user) };
 }
 
 /**
@@ -240,8 +185,8 @@ export async function sendPasswordReset(email: string): Promise<{ success: boole
 
   if (!auth) {
     return {
-      success: true,
-      message: `Password reset simulation: instructions sent to ${trimmed}.`
+      success: false,
+      message: 'Authentication is unavailable. Please try again later.'
     };
   }
 
@@ -256,7 +201,7 @@ export async function sendPasswordReset(email: string): Promise<{ success: boole
     let message = 'Failed to send password reset email. Please try again.';
 
     if (code === 'auth/user-not-found') {
-      message = 'No account found matching this email address.';
+      return { success: true, message: 'If an account exists, password reset instructions have been sent.' };
     } else if (code === 'auth/invalid-email') {
       message = 'Please provide a valid email address.';
     } else if (code === 'auth/missing-email') {
@@ -297,15 +242,8 @@ export async function getVerifiedAuthStatus(): Promise<{
     return { isAuthenticated: false };
   }
 
-  let isAdmin = current.email?.toLowerCase() === 'mmnagarjunareddy@gmail.com';
-  if (!isAdmin) {
-    try {
-      const adminSnap = await getDoc(doc(db, 'admins', current.uid));
-      isAdmin = adminSnap.exists();
-    } catch {
-      // ignore
-    }
-  }
+  const claims = (await current.getIdTokenResult()).claims;
+  const isAdmin = claims.admin === true || claims.role === 'authority';
 
   let tokenResult = null;
   try {

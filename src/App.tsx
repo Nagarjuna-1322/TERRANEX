@@ -33,7 +33,7 @@ import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { EmergencyModeOverlay } from './components/EmergencyModeOverlay';
 import { PullToRefresh } from './components/PullToRefresh';
 import { CloudStorageService } from './services/cloudStorage';
-import { auth, mapFirebaseUserToAppUser } from './services/firebase';
+import { auth, mapFirebaseUserToAppUser, signOutFirebase } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { Play, Sliders, MapPin, Truck, RefreshCw, Newspaper, Globe, Sparkles } from 'lucide-react';
@@ -90,9 +90,11 @@ export default function App() {
     try {
       const unsubscribe = onAuthStateChanged(
         auth,
-        (fbUser) => {
+        async (fbUser) => {
           if (fbUser) {
-            setCurrentUser(mapFirebaseUserToAppUser(fbUser));
+            try { setCurrentUser(await mapFirebaseUserToAppUser(fbUser)); } catch { setCurrentUser(null); }
+          } else {
+            setCurrentUser(null);
           }
         },
         (authErr) => {
@@ -129,6 +131,7 @@ export default function App() {
 
   // Load live data from server & cloud storage on startup
   const refreshData = useCallback(async () => {
+    if (!auth?.currentUser) return;
     try {
       const data = await api.getInitialData();
       if (data.roads && data.roads.length > 0) setRoads(data.roads);
@@ -179,7 +182,7 @@ export default function App() {
     }
 
     setPendingSyncCount(OfflineSyncService.getQueue().length);
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     refreshData();
@@ -201,31 +204,7 @@ export default function App() {
         prev.map((a) => (a.id === article.id ? { ...a, appliedToRoute: true } : a))
       );
     } catch (err) {
-      // Local offline fallback
-      setRoads((prev) =>
-        prev.map((r) => {
-          const match =
-            r.code.toLowerCase() === article.extractedHighway.toLowerCase() ||
-            r.code.replace('-', '').toLowerCase() === article.extractedHighway.replace('-', '').toLowerCase();
-          if (match) {
-            return {
-              ...r,
-              status: article.detectedStatus,
-              accessibility:
-                article.detectedStatus === 'BLOCKED'
-                  ? 'BLOCKED'
-                  : article.detectedStatus === 'HIGH_RISK'
-                  ? 'RESTRICTED'
-                  : 'ACCESSIBLE',
-              recommendedAction: article.impactSummary
-            };
-          }
-          return r;
-        })
-      );
-      setNewsArticles((prev) =>
-        prev.map((a) => (a.id === article.id ? { ...a, appliedToRoute: true } : a))
-      );
+      window.alert(err instanceof Error ? err.message : 'Unable to apply news impact.');
     }
   }, []);
 
@@ -726,7 +705,7 @@ export default function App() {
         {activeTab === 'profile' && (
           <ProfileScreen
             currentUser={currentUser}
-            onLogout={() => setCurrentUser(null)}
+            onLogout={async () => { await signOutFirebase(); setCurrentUser(null); }}
             lang={lang}
             onLangChange={setLang}
             onSwitchRole={(newRole) => {

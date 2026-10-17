@@ -1,3 +1,5 @@
+> **Security update:** Real Firebase authentication and administrator-assigned custom claims are required. Password-free demo/HQ login and OTP simulation have been removed. See [SECURITY.md](SECURITY.md) for role provisioning, credentials, Firestore rule deployment, and remaining prototype limitations. The older demo walkthrough below does not override these requirements.
+
 # 🌐 TerraNex
 
 ### AI-Powered Smart Logistics & Accessibility Intelligence Platform for the North Eastern Region

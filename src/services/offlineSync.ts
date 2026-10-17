@@ -1,12 +1,14 @@
+import { auth } from './firebase';
 import { OfflineSyncItem } from '../types';
 import { api } from './api';
 
 export type OfflineQueueItem = OfflineSyncItem;
 
-const STORAGE_KEY = 'terranex_pending_sync_queue';
+const storageKey = () => 'terranex_pending_sync_queue:' + (auth?.currentUser?.uid || 'signed-out');
 const OFFLINE_OVERRIDE_KEY = 'terranex_simulated_offline';
 
 export class OfflineSyncService {
+  private static syncing = false;
   private static listeners: Array<(items: OfflineSyncItem[], isOnline: boolean) => void> = [];
 
   static getQueue(): OfflineSyncItem[] {
@@ -14,7 +16,7 @@ export class OfflineSyncService {
   }
 
   static clearQueue(): void {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(storageKey());
     this.notifyListeners();
   }
 
@@ -44,8 +46,9 @@ export class OfflineSyncService {
 
   static getPendingQueue(): OfflineSyncItem[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
+      const data = localStorage.getItem(storageKey());
+      const queue = data ? JSON.parse(data) : [];
+      return Array.isArray(queue) ? queue : [];
     } catch {
       return [];
     }
@@ -63,7 +66,7 @@ export class OfflineSyncService {
     };
 
     queue.push(newItem);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+    localStorage.setItem(storageKey(), JSON.stringify(queue));
     this.notifyListeners();
 
     // If online, attempt immediate sync
@@ -75,20 +78,26 @@ export class OfflineSyncService {
   }
 
   static async syncPendingItems(): Promise<{ success: boolean; syncedCount: number }> {
-    const queue = this.getPendingQueue();
+    if (this.syncing || !auth?.currentUser || !this.isOnline()) return { success: false, syncedCount: 0 };
+    const key = storageKey();
+    const queue = this.getPendingQueue().slice(0, 100);
     if (queue.length === 0) return { success: true, syncedCount: 0 };
 
+    this.syncing = true;
     try {
       const res = await api.syncOfflineQueue(queue);
       if (res.success && Array.isArray(res.syncedIds)) {
         // Remove synced items from queue
-        const remaining = queue.filter((item) => !res.syncedIds.includes(item.id));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+        const latest = JSON.parse(localStorage.getItem(key) || '[]') as OfflineSyncItem[];
+        const remaining = latest.filter(item => !res.syncedIds.includes(item.id));
+        localStorage.setItem(key, JSON.stringify(remaining));
         this.notifyListeners();
         return { success: true, syncedCount: res.syncedCount || queue.length };
       }
     } catch (err) {
       console.warn('Sync failed, will retry later:', err);
+    } finally {
+      this.syncing = false;
     }
 
     return { success: false, syncedCount: 0 };

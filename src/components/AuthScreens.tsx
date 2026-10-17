@@ -109,7 +109,7 @@ export const LoginScreen: React.FC<AuthScreensProps> = ({ onLoginSuccess }) => {
         setError(res.error || 'Authentication failed. Please verify credentials.');
       }
     } catch (err) {
-      setError('Unable to contact authentication gateway.');
+      setError(err instanceof Error ? err.message : 'Authentication failed.');
     } finally {
       setIsLoading(false);
     }
@@ -123,19 +123,7 @@ export const LoginScreen: React.FC<AuthScreensProps> = ({ onLoginSuccess }) => {
       if (res.success && res.user) {
         onLoginSuccess(res.user);
       } else {
-        // Fallback for evaluator environment if popups are suppressed
-        const fallbackOwner: User = {
-          id: 'usr-auth-nagarjuna',
-          name: 'M. Nagarjuna Reddy',
-          employeeId: 'NER-HQ-DIRECTOR',
-          email: 'mmnagarjunareddy@gmail.com',
-          phone: '+91 94350 99881',
-          role: 'authority',
-          organization: 'NER Disaster Management & Transport Authority (HQ)',
-          state: 'Assam',
-          district: 'Kamrup Metropolitan (Guwahati)'
-        };
-        onLoginSuccess(fallbackOwner);
+        setError(res.error || 'Google authentication failed. Please try again.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google authentication encountered an error');
@@ -157,7 +145,7 @@ export const LoginScreen: React.FC<AuthScreensProps> = ({ onLoginSuccess }) => {
         setError(res.error || 'Registration failed.');
       }
     } catch (err) {
-      setError('Registration error.');
+      setError(err instanceof Error ? err.message : 'Registration failed.');
     } finally {
       setIsLoading(false);
     }
@@ -329,77 +317,7 @@ export const LoginScreen: React.FC<AuthScreensProps> = ({ onLoginSuccess }) => {
               <span>Sign in with Google (Firebase Verified)</span>
             </button>
 
-            {/* Verified Command Officer Quick Access */}
-            <div className="p-2.5 bg-emerald-50 border-2 border-emerald-600 text-[11px] font-mono flex items-center justify-between gap-2 shadow-[2px_2px_0px_#059669]">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <div>
-                  <span className="font-black text-emerald-900 uppercase block text-[10px]">Verified Command Officer</span>
-                  <span className="text-emerald-700 text-[10px]">mmnagarjunareddy@gmail.com</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                id="btn-login-verified-nagarjuna"
-                onClick={() => {
-                  onLoginSuccess({
-                    id: 'usr-auth-nagarjuna',
-                    name: 'M. Nagarjuna Reddy',
-                    employeeId: 'NER-HQ-DIRECTOR',
-                    email: 'mmnagarjunareddy@gmail.com',
-                    phone: '+91 94350 99881',
-                    role: 'authority',
-                    organization: 'NER Disaster Management & Transport Authority (HQ)',
-                    state: 'Assam',
-                    district: 'Kamrup Metropolitan (Guwahati)'
-                  });
-                }}
-                className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-[10px] uppercase tracking-wider border border-black shadow-[1px_1px_0px_#000] cursor-pointer"
-              >
-                Access HQ
-              </button>
-            </div>
 
-            {/* Quick Demo Access Buttons for SIH Presentation */}
-            <div className="pt-4 border-t-2 border-black space-y-2">
-              <span className="text-[10px] text-neutral-500 block text-center font-mono uppercase tracking-widest font-black">
-                Quick Evaluator Demo Roles:
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[10px]">
-                <button
-                  type="button"
-                  id="btn-demo-authority"
-                  onClick={() => handleLogin(undefined, 'authority')}
-                  className="p-2 bg-white hover:bg-neutral-100 border-2 border-black text-[#0a0a0a] font-black uppercase tracking-wider shadow-[2px_2px_0px_#0a0a0a] transition text-center"
-                >
-                  AUTHORITY
-                </button>
-                <button
-                  type="button"
-                  id="btn-demo-field"
-                  onClick={() => handleLogin(undefined, 'field_officer')}
-                  className="p-2 bg-white hover:bg-neutral-100 border-2 border-black text-[#0a0a0a] font-black uppercase tracking-wider shadow-[2px_2px_0px_#0a0a0a] transition text-center"
-                >
-                  FIELD TEAM
-                </button>
-                <button
-                  type="button"
-                  id="btn-demo-driver"
-                  onClick={() => handleLogin(undefined, 'driver')}
-                  className="p-2 bg-white hover:bg-neutral-100 border-2 border-black text-[#0a0a0a] font-black uppercase tracking-wider shadow-[2px_2px_0px_#0a0a0a] transition text-center"
-                >
-                  DRIVER
-                </button>
-                <button
-                  type="button"
-                  id="btn-demo-analyst"
-                  onClick={() => handleLogin(undefined, 'analyst')}
-                  className="p-2 bg-white hover:bg-neutral-100 border-2 border-black text-[#0a0a0a] font-black uppercase tracking-wider shadow-[2px_2px_0px_#0a0a0a] transition text-center"
-                >
-                  ANALYST
-                </button>
-              </div>
-            </div>
           </form>
         ) : (
           /* Registration Form */

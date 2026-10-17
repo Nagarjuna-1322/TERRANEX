@@ -38,7 +38,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   useEffect(() => {
     // Load audit logs from backend
     api.getAuditLogs().then((res) => {
-      if (res.logs) setAuditLogs(res.logs);
+      if (res.auditLogs) setAuditLogs(res.auditLogs);
     });
     setOfflineItems(OfflineSyncService.getQueue());
   }, []);

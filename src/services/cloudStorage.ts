@@ -204,18 +204,7 @@ export const CloudStorageService = {
         }
       }
 
-      // Audit Logs
-      for (const log of auditLogs) {
-        try {
-          await setDoc(doc(db, 'auditLogs', log.id), {
-            ...log,
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
-          count++;
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `auditLogs/${log.id}`);
-        }
-      }
+      // Audit records are server-controlled and cannot be uploaded from a browser.
 
       // Metadata record
       await setDoc(doc(db, 'cloudSyncMeta', 'status'), {

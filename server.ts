@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import { randomInt } from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import {
   INITIAL_ROADS,
@@ -130,7 +131,7 @@ app.use(express.json({ limit: '10mb' }));
     const newUser = {
       id: `usr-${Date.now()}`,
       name: name || 'Officer',
-      employeeId: employeeId || `NER-${Math.floor(1000 + Math.random() * 9000)}`,
+      employeeId: employeeId || `NER-${randomInt(1000, 10000)}`,
       email: email || 'user@terranex.gov.in',
       phone: phone || '+91 94000 00000',
       role: role || 'field_officer',

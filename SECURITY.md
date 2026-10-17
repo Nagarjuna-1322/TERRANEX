@@ -2,20 +2,30 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+The project is currently maintained in the default branch and security fixes are applied as soon as practical.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| main / latest | :white_check_mark: |
+| older branches or tags | :x: |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Please report security issues privately by emailing the maintainer or opening a confidential report through the repository security tab.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+When reporting a vulnerability, include:
+
+- a description of the issue
+- the affected file or endpoint
+- reproduction steps
+- the impact and severity
+- any suggested remediation
+
+We will acknowledge the report within 5 business days and keep you informed as the fix is validated and released.
+
+## Security Expectations
+
+- do not commit secrets, API keys, or Firebase credentials
+- rotate exposed credentials immediately if they were accidentally published
+- keep dependencies updated and review security advisories regularly
+- validate access rules before enabling production data access

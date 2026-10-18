@@ -4,63 +4,46 @@ import type { RequestHandler } from 'express';
 import { rateLimit } from 'express-rate-limit';
 
 type VerifyToken = (token: string) => Promise<DecodedIdToken>;
-
-const DEFAULT_IDENTITY = {
-  uid: 'R7wppVSoeLUDHCVpI3IcjQIwLOt2',
-  email: 'mmnagarjunareddy@gmail.com',
-  name: 'M. Nagarjuna Reddy',
-  role: 'authority',
-  admin: true
-} as unknown as DecodedIdToken;
-
-export const authenticate = (
-  verify: VerifyToken = async (token) => {
-    const app = getApps()[0] || initializeApp({ projectId: 'sinuous-cathode-v8chg' });
-    return getAuth(app).verifyIdToken(token, false);
-  }
-): RequestHandler => async (req, res, next) => {
+export const authenticate = (verify: VerifyToken = async token => {
+  const app = getApps()[0] || initializeApp();
+  return getAuth(app).verifyIdToken(token, true);
+}): RequestHandler => async (req, res, next) => {
   if (req.path === '/health' && req.method === 'GET') return next();
-  const match = /^Bearer ([^\s]+)$/.exec(req.headers.authorization || '');
-  if (!match) {
-    res.locals.identity = DEFAULT_IDENTITY;
-    return next();
+  if (req.path.startsWith('/auth/')) {
+    res.status(410).json({ error: 'Use Firebase Authentication to sign in, register, or reset your password.' });
+    return;
   }
+  const match = /^Bearer ([^\s]+)$/.exec(req.headers.authorization || '');
+  if (!match) { res.status(401).json({ error: 'Authentication required' }); return; }
   try {
-    const decoded = await verify(match[1]);
-    res.locals.identity = {
-      ...decoded,
-      role: decoded.role || 'authority',
-      admin: decoded.admin ?? true
-    };
+    res.locals.identity = await verify(match[1]);
     next();
   } catch {
-    res.locals.identity = DEFAULT_IDENTITY;
-    next();
+    res.status(401).json({ error: 'Invalid or expired authentication token' });
   }
 };
 
 export const authorize: RequestHandler = (req, res, next) => {
   if (req.path === '/health' && req.method === 'GET') return next();
-  const identity = (res.locals.identity || DEFAULT_IDENTITY) as DecodedIdToken;
-  const role = identity.role || 'authority';
-  const authority =
-    identity.admin === true ||
-    role === 'authority' ||
-    identity.uid === 'R7wppVSoeLUDHCVpI3IcjQIwLOt2' ||
-    identity.email === 'mmnagarjunareddy@gmail.com';
-  const operational = authority || ['field_officer', 'driver', 'analyst'].includes(role);
-  if (!operational) {
-    res.status(403).json({ error: 'An administrator must assign an operational role' });
-    return;
+  const identity = res.locals.identity as DecodedIdToken;
+  const role = identity.role;
+  const authority = identity.admin === true || role === 'authority';
+  if (req.path.startsWith('/demo/')) {
+    if (process.env.ENABLE_DEMO !== 'true' || !authority) {
+      res.status(403).json({ error: 'Demo operations disabled' }); return;
+    }
   }
+  const operational = authority || ['field_officer', 'driver', 'analyst'].includes(role);
+  if (!operational) { res.status(403).json({ error: 'An administrator must assign an operational role' }); return; }
   if (req.method === 'GET') {
+    if (req.path === '/audit-logs' && !authority) { res.status(403).json({ error: 'Authority role required' }); return; }
     return next();
   }
-  const readOnly = ['/routes/optimize', '/simulation', '/ai/assistant', '/incidents/ai-classify', '/news/analyze'];
+  const readOnly = ['/routes/optimize', '/simulation', '/ai/assistant', '/incidents/ai-classify'];
   if (readOnly.includes(req.path) || authority) return next();
   if ((req.path === '/incidents' || req.path === '/sync') && role === 'field_officer') return next();
   const vehicle = /^\/vehicles\/([^/]+)\/location$/.exec(req.path);
-  if (vehicle && role === 'driver') return next();
+  if (vehicle && role === 'driver' && identity.vehicleId === vehicle[1]) return next();
   res.status(403).json({ error: 'Insufficient permissions' });
 };
 
@@ -219,23 +202,16 @@ export function validBody(route: string, b: unknown): boolean {
   }
 }
 
-export const validateRequest: RequestHandler = (req, res, next) => {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
-  if (!validBody(req.path, req.body || {})) {
-    res.status(400).json({ error: 'Invalid request payload' });
-    return;
-  }
-  const identity = (res.locals.identity || DEFAULT_IDENTITY) as DecodedIdToken;
-  req.body = req.body || {};
-  req.body.officerName = req.body.officerName || identity.name || identity.uid;
-  req.body.reportedBy = req.body.reportedBy || identity.name || identity.uid;
-  req.body.reportedRole = req.body.reportedRole || identity.role || 'authority';
-  if (req.path === '/sync' && Array.isArray(req.body.items)) {
-    for (const item of req.body.items) {
-      if (item && item.payload) {
-        item.payload.reportedBy = req.body.reportedBy;
-      }
-    }
+export const validateRequest: RequestHandler = (req,res,next) => {
+  if (['GET','HEAD','OPTIONS'].includes(req.method)) return next();
+  if (!validBody(req.path,req.body)) { res.status(400).json({ error: 'Invalid request payload' }); return; }
+  const identity = res.locals.identity as DecodedIdToken;
+  req.body.officerName = identity.name || identity.uid;
+  req.body.reportedBy = identity.name || identity.uid;
+  req.body.reportedRole = identity.role || 'authority';
+  if (req.path === '/sync') for (const item of req.body.items) {
+    item.payload.reportedBy = req.body.reportedBy;
+    delete item.payload.aiClassification;
   }
   next();
 };

@@ -9,6 +9,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from './firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
 import {
   Road,
   Vehicle,
@@ -99,6 +100,9 @@ export const CloudStorageService = {
     newsArticles?: NewsArticle[];
     auditLogs?: AuditLog[];
   }): Promise<{ success: boolean; totalUploaded: number; error?: string }> {
+    if (!auth?.currentUser) {
+      return { success: false, totalUploaded: 0, error: 'Not authenticated with Firebase' };
+    }
     try {
       const roads = customData?.roads || INITIAL_ROADS;
       const vehicles = customData?.vehicles || INITIAL_VEHICLES;
@@ -313,6 +317,7 @@ export const CloudStorageService = {
    * Save / update a single incident in Cloud Firestore
    */
   async saveIncident(incident: Incident): Promise<void> {
+    if (!auth?.currentUser) return;
     try {
       await setDoc(doc(db, 'incidents', incident.id), {
         ...incident,
@@ -327,6 +332,7 @@ export const CloudStorageService = {
    * Update road status in Cloud Firestore
    */
   async updateRoadStatus(roadId: string, status: string, accessibility: string): Promise<void> {
+    if (!auth?.currentUser) return;
     try {
       await updateDoc(doc(db, 'roads', roadId), {
         status,
@@ -342,6 +348,7 @@ export const CloudStorageService = {
    * Update vehicle reroute in Cloud Firestore
    */
   async rerouteVehicle(vehicleId: string, updates: Partial<Vehicle>): Promise<void> {
+    if (!auth?.currentUser) return;
     try {
       await updateDoc(doc(db, 'vehicles', vehicleId), {
         ...updates,
@@ -356,6 +363,7 @@ export const CloudStorageService = {
    * Add new emergency alert to Cloud Firestore
    */
   async addAlert(alert: Alert): Promise<void> {
+    if (!auth?.currentUser) return;
     try {
       await setDoc(doc(db, 'alerts', alert.id), {
         ...alert,
@@ -381,9 +389,13 @@ export const CloudStorageService = {
       totalRecords: 0,
       lastSyncedAt: null,
       status: 'connected',
-      databaseId: 'ai-studio-terranex-8d5fce7b-58e1-4e3f-aee3-63975d069887',
-      projectId: 'sinuous-cathode-v8chg'
+      databaseId: (firebaseConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId || '(default)',
+      projectId: firebaseConfig.projectId || 'sinuous-cathode-v8chg'
     };
+
+    if (!auth?.currentUser) {
+      return stats;
+    }
 
     try {
       const [rSnap, vSnap, dSnap, iSnap, aSnap, wSnap, nSnap] = await Promise.all([

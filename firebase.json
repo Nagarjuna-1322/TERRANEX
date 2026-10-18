@@ -1,7 +1,7 @@
 {
   "firestore": [
     {
-      "database": "(default)",
+      "database": "ai-studio-terranex-1fd30972-76ba-4b34-8d1f-833ba09b81f4",
       "rules": "firestore.rules"
     }
   ]

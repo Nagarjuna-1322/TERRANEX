@@ -90,11 +90,9 @@ export default function App() {
     try {
       const unsubscribe = onAuthStateChanged(
         auth,
-        async (fbUser) => {
+        (fbUser) => {
           if (fbUser) {
-            try { setCurrentUser(await mapFirebaseUserToAppUser(fbUser)); } catch { setCurrentUser(null); }
-          } else {
-            setCurrentUser(null);
+            setCurrentUser(mapFirebaseUserToAppUser(fbUser));
           }
         },
         (authErr) => {
@@ -131,7 +129,6 @@ export default function App() {
 
   // Load live data from server & cloud storage on startup
   const refreshData = useCallback(async () => {
-    if (!auth?.currentUser) return;
     try {
       const data = await api.getInitialData();
       if (data.roads && data.roads.length > 0) setRoads(data.roads);
@@ -152,33 +149,35 @@ export default function App() {
       console.warn('Using seeded news articles offline:', err);
     }
 
-    // Check Cloud Storage Persistence (Firebase Firestore)
-    try {
-      const cloudStats = await CloudStorageService.getCloudStorageStats();
-      if (cloudStats.totalRecords === 0) {
-        // Automatically seed complete data to Cloud Firestore if cloud database is empty
-        await CloudStorageService.uploadCompleteDataToCloud({
-          roads: INITIAL_ROADS,
-          vehicles: INITIAL_VEHICLES,
-          deliveries: INITIAL_DELIVERIES,
-          incidents: INITIAL_INCIDENTS,
-          alerts: INITIAL_ALERTS,
-          weather: INITIAL_WEATHER,
-          newsArticles: INITIAL_INDIA_NEWS_ARTICLES
-        });
-      } else {
-        // Cloud has existing persistence! Merge live cloud data
-        const cloudData = await CloudStorageService.fetchCompleteDataFromCloud();
-        if (cloudData.roads.length > 0) setRoads(cloudData.roads);
-        if (cloudData.vehicles.length > 0) setVehicles(cloudData.vehicles);
-        if (cloudData.deliveries.length > 0) setDeliveries(cloudData.deliveries);
-        if (cloudData.incidents.length > 0) setIncidents(cloudData.incidents);
-        if (cloudData.alerts.length > 0) setAlerts(cloudData.alerts);
-        if (cloudData.weather.length > 0) setWeather(cloudData.weather);
-        if (cloudData.newsArticles.length > 0) setNewsArticles(cloudData.newsArticles);
+    // Check Cloud Storage Persistence (Firebase Firestore) when signed in with Firebase
+    if (auth?.currentUser) {
+      try {
+        const cloudStats = await CloudStorageService.getCloudStorageStats();
+        if (cloudStats.totalRecords === 0) {
+          // Automatically seed complete data to Cloud Firestore if cloud database is empty
+          await CloudStorageService.uploadCompleteDataToCloud({
+            roads: INITIAL_ROADS,
+            vehicles: INITIAL_VEHICLES,
+            deliveries: INITIAL_DELIVERIES,
+            incidents: INITIAL_INCIDENTS,
+            alerts: INITIAL_ALERTS,
+            weather: INITIAL_WEATHER,
+            newsArticles: INITIAL_INDIA_NEWS_ARTICLES
+          });
+        } else {
+          // Cloud has existing persistence! Merge live cloud data
+          const cloudData = await CloudStorageService.fetchCompleteDataFromCloud();
+          if (cloudData.roads.length > 0) setRoads(cloudData.roads);
+          if (cloudData.vehicles.length > 0) setVehicles(cloudData.vehicles);
+          if (cloudData.deliveries.length > 0) setDeliveries(cloudData.deliveries);
+          if (cloudData.incidents.length > 0) setIncidents(cloudData.incidents);
+          if (cloudData.alerts.length > 0) setAlerts(cloudData.alerts);
+          if (cloudData.weather.length > 0) setWeather(cloudData.weather);
+          if (cloudData.newsArticles.length > 0) setNewsArticles(cloudData.newsArticles);
+        }
+      } catch (cloudErr) {
+        console.warn('Cloud Storage sync:', cloudErr);
       }
-    } catch (cloudErr) {
-      console.warn('Cloud Storage sync:', cloudErr);
     }
 
     setPendingSyncCount(OfflineSyncService.getQueue().length);

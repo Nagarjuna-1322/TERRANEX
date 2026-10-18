@@ -1,38 +1,229 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
-    function admin() { return signedIn() && (request.auth.token.get('admin', false) == true || request.auth.token.get('role', '') == 'authority'); }
-    function operator() { return signedIn() && (admin() || request.auth.token.get('role', '') in ['field_officer', 'driver', 'analyst']); }
-    function owner(id) { return signedIn() && request.auth.uid == id; }
-    function validId(id) { return id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$'); }
-    match /test/connection { allow get: if true; }
-    // Admin claims and registry entries may only be provisioned by a trusted server.
-    match /admins/{id} {
-      allow get: if owner(id) || admin();
-      allow list: if admin();
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.uid == "R7wppVSoeLUDHCVpI3IcjQIwLOt2" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == "mmnagarjunareddy@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isValidAdmin(data, adminId) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'grantedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'role', 'grantedAt']) &&
+        data.uid is string && data.uid == adminId && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() <= 150 &&
+        data.role is string && data.role == 'super_admin' &&
+        data.grantedAt is string && data.grantedAt.size() <= 60;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['id', 'name', 'email', 'role']) &&
+        data.keys().hasOnly(['id', 'name', 'employeeId', 'email', 'phone', 'role', 'organization', 'state', 'district', 'avatar', 'updatedAt']) &&
+        data.id is string && data.id == userId && data.id.size() <= 128 &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+        data.email is string && data.email.size() > 0 && data.email.size() <= 150 &&
+        data.role is string && data.role in ['authority', 'field_officer', 'driver', 'analyst'] &&
+        (!('employeeId' in data) || (data.employeeId is string && data.employeeId.size() <= 60)) &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+        (!('organization' in data) || (data.organization is string && data.organization.size() <= 150)) &&
+        (!('state' in data) || (data.state is string && data.state.size() <= 80)) &&
+        (!('district' in data) || (data.district is string && data.district.size() <= 80)) &&
+        (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 500)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60));
+    }
+
+    function isValidRoad(data, roadId) {
+      return data.keys().hasAll(['id', 'code', 'name', 'status', 'riskScore']) &&
+        data.id is string && data.id == roadId && data.id.size() <= 128 &&
+        data.code is string && data.code.size() <= 30 &&
+        data.name is string && data.name.size() <= 150 &&
+        data.status is string && data.status in ['ACCESSIBLE', 'MODERATE', 'HIGH_RISK', 'BLOCKED'] &&
+        data.riskScore is number && data.riskScore >= 0 && data.riskScore <= 100;
+    }
+
+    function isValidVehicle(data, vehicleId) {
+      return data.keys().hasAll(['id', 'vehicleNumber', 'type', 'driverName', 'status']) &&
+        data.id is string && data.id == vehicleId && data.id.size() <= 128 &&
+        data.vehicleNumber is string && data.vehicleNumber.size() <= 40 &&
+        data.type is string && data.type in ['LOGISTICS', 'EMERGENCY', 'CONSTRUCTION'] &&
+        data.driverName is string && data.driverName.size() <= 120 &&
+        data.status is string && data.status in ['IN_TRANSIT', 'IDLE', 'LOADING', 'ARRIVED', 'DELAYED', 'REROUTED'];
+    }
+
+    function isValidDelivery(data, deliveryId) {
+      return data.keys().hasAll(['id', 'deliveryCode', 'cargo', 'priority', 'status']) &&
+        data.id is string && data.id == deliveryId && data.id.size() <= 128 &&
+        data.deliveryCode is string && data.deliveryCode.size() <= 40 &&
+        data.cargo is string && data.cargo.size() <= 200 &&
+        data.priority is string && data.priority in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] &&
+        data.status is string && data.status in ['IN_TRANSIT', 'DELAYED', 'DELIVERED', 'REROUTED'];
+    }
+
+    function isValidIncident(data, incidentId) {
+      return data.keys().hasAll(['id', 'incidentCode', 'type', 'severity', 'status']) &&
+        data.id is string && data.id == incidentId && data.id.size() <= 128 &&
+        data.incidentCode is string && data.incidentCode.size() <= 40 &&
+        data.type is string && data.type.size() <= 60 &&
+        data.severity is string && data.severity in ['Low', 'Medium', 'High', 'Critical'] &&
+        data.status is string && data.status in ['ACTIVE', 'INVESTIGATING', 'RESOLVED'];
+    }
+
+    function isValidAlert(data, alertId) {
+      return data.keys().hasAll(['id', 'level', 'title', 'message']) &&
+        data.id is string && data.id == alertId && data.id.size() <= 128 &&
+        data.level is string && data.level in ['CRITICAL', 'HIGH', 'MEDIUM', 'INFO'] &&
+        data.title is string && data.title.size() <= 200 &&
+        data.message is string && data.message.size() <= 1000;
+    }
+
+    function isValidWeather(data) {
+      return data.keys().hasAll(['region', 'state', 'condition', 'impactLevel']) &&
+        data.region is string && data.region.size() <= 100 &&
+        data.state is string && data.state.size() <= 80 &&
+        data.condition is string && data.condition.size() <= 120 &&
+        data.impactLevel is string && data.impactLevel in ['LOW', 'MEDIUM', 'HIGH'];
+    }
+
+    function isValidNewsArticle(data, articleId) {
+      return data.keys().hasAll(['id', 'title', 'source', 'detectedStatus']) &&
+        data.id is string && data.id == articleId && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 300 &&
+        data.source is string && data.source.size() <= 150 &&
+        data.detectedStatus is string && data.detectedStatus in ['BLOCKED', 'HIGH_RISK', 'MODERATE', 'ACCESSIBLE'];
+    }
+
+    function isValidCloudSyncMeta(data, metaId) {
+      return data.keys().hasAll(['id', 'lastSyncedAt', 'status']) &&
+        data.id is string && data.id == metaId && data.id.size() <= 64 &&
+        data.lastSyncedAt is string && data.lastSyncedAt.size() <= 60 &&
+        data.status is string && data.status.size() <= 40;
+    }
+
+    match /test/connection {
+      allow get: if true;
+    }
+
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow create, update: if isSignedIn() && isValidId(adminId) && isOwner(adminId) &&
+        isAdmin() &&
+        isValidAdmin(incoming(), adminId);
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin() || (isSignedIn() && existing().id == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(userId) && isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        (incoming().role != 'authority' || isAdmin());
+      allow update: if isSignedIn() && isValidId(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().id == existing().id &&
+        (
+          (isOwner(userId) &&
+            incoming().role == existing().role &&
+            incoming().email == existing().email &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'employeeId', 'phone', 'organization', 'state', 'district', 'avatar', 'updatedAt'])) ||
+          isAdmin()
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    match /roads/{roadId} {
+      allow get: if isValidId(roadId) && isSignedIn();
+      allow list: if isSignedIn() && existing().id is string;
+      allow create: if isSignedIn() && isValidId(roadId) && isValidRoad(incoming(), roadId);
+      allow update: if isSignedIn() && isValidId(roadId) && isValidRoad(incoming(), roadId) && incoming().id == existing().id;
+      allow delete: if isValidId(roadId) && isAdmin();
+    }
+
+    match /vehicles/{vehicleId} {
+      allow get: if isValidId(vehicleId) && isSignedIn();
+      allow list: if isSignedIn() && existing().id is string;
+      allow create: if isSignedIn() && isValidId(vehicleId) && isValidVehicle(incoming(), vehicleId);
+      allow update: if isSignedIn() && isValidId(vehicleId) && isValidVehicle(incoming(), vehicleId) && incoming().id == existing().id;
+      allow delete: if isValidId(vehicleId) && isAdmin();
+    }
+
+    match /deliveries/{deliveryId} {
+      allow get: if isValidId(deliveryId) && isSignedIn();
+      allow list: if isSignedIn() && existing().id is string;
+      allow create: if isSignedIn() && isValidId(deliveryId) && isValidDelivery(incoming(), deliveryId);
+      allow update: if isSignedIn() && isValidId(deliveryId) && isValidDelivery(incoming(), deliveryId) && incoming().id == existing().id;
+      allow delete: if isValidId(deliveryId) && isAdmin();
+    }
+
+    match /incidents/{incidentId} {
+      allow get: if isValidId(incidentId) && isSignedIn();
+      allow list: if isSignedIn() && existing().id is string;
+      allow create: if isSignedIn() && isValidId(incidentId) && isValidIncident(incoming(), incidentId);
+      allow update: if isSignedIn() && isValidId(incidentId) && isValidIncident(incoming(), incidentId) && incoming().id == existing().id;
+      allow delete: if isValidId(incidentId) && isAdmin();
+    }
+
+    match /alerts/{alertId} {
+      allow get: if isValidId(alertId) && isSignedIn();
+      allow list: if isSignedIn() && existing().id is string;
+      allow create: if isSignedIn() && isValidId(alertId) && isValidAlert(incoming(), alertId);
+      allow update: if isSignedIn() && isValidId(alertId) && isValidAlert(incoming(), alertId) && incoming().id == existing().id;
+      allow delete: if isValidId(alertId) && isAdmin();
+    }
+
+    match /weather/{weatherId} {
+      allow get: if isValidId(weatherId) && isSignedIn();
+      allow list: if isSignedIn() && existing().state is string;
+      allow create: if isSignedIn() && isValidId(weatherId) && isValidWeather(incoming());
+      allow update: if isSignedIn() && isValidId(weatherId) && isValidWeather(incoming());
+      allow delete: if isValidId(weatherId) && isAdmin();
+    }
+
+    match /newsArticles/{articleId} {
+      allow get: if isValidId(articleId) && isSignedIn();
+      allow list: if isSignedIn() && existing().id is string;
+      allow create: if isSignedIn() && isValidId(articleId) && isValidNewsArticle(incoming(), articleId);
+      allow update: if isSignedIn() && isValidId(articleId) && isValidNewsArticle(incoming(), articleId) && incoming().id == existing().id;
+      allow delete: if isValidId(articleId) && isAdmin();
+    }
+
+    match /cloudSyncMeta/{metaId} {
+      allow get: if isValidId(metaId) && isSignedIn();
+      allow list: if isSignedIn() && existing().id is string;
+      allow create: if isSignedIn() && isValidId(metaId) && isValidCloudSyncMeta(incoming(), metaId);
+      allow update: if isSignedIn() && isValidId(metaId) && isValidCloudSyncMeta(incoming(), metaId) && incoming().id == existing().id;
+      allow delete: if isValidId(metaId) && isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin() && existing().id is string;
       allow write: if false;
     }
-    match /users/{id} {
-      allow get: if owner(id) || admin();
-      allow list: if admin();
-      allow create: if owner(id) && validId(id)
-        && request.resource.data.keys().hasOnly(['id', 'name', 'email', 'phone', 'avatar', 'updatedAt'])
-        && request.resource.data.id == id
-        && request.resource.data.email == request.auth.token.email;
-      allow update: if owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'avatar', 'updatedAt']);
-      allow delete: if admin();
-    }
-    match /{collection}/{id} {
-      allow read: if operator() && collection in ['roads', 'vehicles', 'deliveries', 'incidents', 'alerts', 'weather', 'newsArticles', 'cloudSyncMeta'];
-      // Operational writes go through the validated API; only authorities can sync snapshots.
-      allow create, update: if admin() && validId(id) && collection in ['roads', 'vehicles', 'deliveries', 'incidents', 'alerts', 'weather', 'newsArticles', 'cloudSyncMeta'];
-      allow delete: if admin() && collection in ['roads', 'vehicles', 'deliveries', 'incidents', 'alerts', 'weather', 'newsArticles', 'cloudSyncMeta'];
-    }
-    match /auditLogs/{id} {
-      allow read: if admin();
-      allow write: if false;
-    }
-    match /{document=**} { allow read, write: if false; }
   }
 }

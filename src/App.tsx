@@ -37,6 +37,7 @@ import { auth, mapFirebaseUserToAppUser, signOutFirebase } from './services/fire
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { Play, Sliders, MapPin, Truck, RefreshCw, Newspaper, Globe, Sparkles } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   // Navigation & Screen Flow States: Open directly to Login screen
@@ -889,6 +890,9 @@ export default function App() {
           setShowDemoController(true);
         }}
       />
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 }

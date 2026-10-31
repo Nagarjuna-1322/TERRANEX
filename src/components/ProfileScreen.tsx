@@ -39,7 +39,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     // Load audit logs from backend
     api.getAuditLogs().then((res) => {
       if (res.auditLogs) setAuditLogs(res.auditLogs);
-    });
+    }).catch((error) => console.warn('Could not load audit history:', error));
     setOfflineItems(OfflineSyncService.getQueue());
   }, []);
 

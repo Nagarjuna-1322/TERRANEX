@@ -1,6 +1,10 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
@@ -63,9 +67,16 @@ export const db = firestoreInstance;
 // Initialize Firebase Auth defensively
 let authInstance: ReturnType<typeof getAuth> | null = null;
 try {
-  authInstance = getAuth(app);
+  authInstance = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    popupRedirectResolver: browserPopupRedirectResolver
+  });
 } catch (authInitErr) {
-  console.warn('Firebase Auth initialization warning:', authInitErr);
+  if ((authInitErr as { code?: string }).code === 'auth/already-initialized') {
+    authInstance = getAuth(app);
+  } else {
+    console.warn('Firebase Auth initialization warning:', authInitErr);
+  }
 }
 export const auth = authInstance;
 export const googleProvider = new GoogleAuthProvider();
@@ -261,13 +272,8 @@ export async function registerWithEmail(data: {
  * Sign out user
  */
 export async function signOutFirebase(): Promise<void> {
-  if (auth) {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.warn('Firebase sign out error:', err);
-    }
-  }
+  if (!auth) throw new Error('Authentication is unavailable.');
+  await signOut(auth);
 }
 
 // Re-export sendPasswordResetEmail for direct consumption

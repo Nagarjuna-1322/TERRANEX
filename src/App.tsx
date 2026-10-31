@@ -39,12 +39,14 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { Play, Sliders, MapPin, Truck, RefreshCw, Newspaper, Globe, Sparkles } from 'lucide-react';
 
 export default function App() {
-  // Navigation & Screen Flow States: Open directly to Login screen
+  // Wait for Firebase to restore the saved session before showing sign-in.
   const [showSplash, setShowSplash] = useState<boolean>(false);
   const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => {
     return localStorage.getItem('tnx_onboarded') === 'true';
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState<string>('home');
   const [lang, setLang] = useState<Language>('en');
   const [simpleMode, setSimpleMode] = useState<boolean>(true);
@@ -86,22 +88,27 @@ export default function App() {
 
   // Auto-sync with Firebase auth observer
   useEffect(() => {
-    if (!auth) return;
+    if (!auth) {
+      setAuthError('Authentication could not start. Please reload and try again.');
+      return;
+    }
     try {
       const unsubscribe = onAuthStateChanged(
         auth,
         (fbUser) => {
-          if (fbUser) {
-            setCurrentUser(mapFirebaseUserToAppUser(fbUser));
-          }
+          setCurrentUser(fbUser ? mapFirebaseUserToAppUser(fbUser) : null);
+          setAuthError('');
+          setAuthReady(true);
         },
         (authErr) => {
           console.warn('Firebase onAuthStateChanged notice:', authErr);
+          setAuthError('Unable to restore your session. Please reload and try again.');
         }
       );
       return () => unsubscribe();
     } catch (err) {
       console.warn('Could not register auth observer:', err);
+      setAuthError('Unable to restore your session. Please reload and try again.');
     }
   }, []);
 
@@ -129,6 +136,7 @@ export default function App() {
 
   // Load live data from server & cloud storage on startup
   const refreshData = useCallback(async () => {
+    if (!currentUser) return;
     try {
       const data = await api.getInitialData();
       if (data.roads && data.roads.length > 0) setRoads(data.roads);
@@ -370,7 +378,19 @@ export default function App() {
     }
   };
 
-  // Flow checks: Open LoginScreen immediately on startup so user completes authentication
+  if (authError || !authReady) {
+    return (
+      <div className="min-h-screen bg-[#f4f4f4] flex items-center justify-center p-6">
+        <div className="border-2 border-black bg-white p-8 text-center space-y-4" role={authError ? 'alert' : 'status'}>
+          <h1 className="font-black text-2xl">TERRANEX</h1>
+          <p>{authError || 'Restoring your session…'}</p>
+          {authError && <button className="bg-black text-white px-4 py-2" onClick={() => window.location.reload()}>Retry</button>}
+        </div>
+      </div>
+    );
+  }
+
+  // Show login only after Firebase confirms there is no signed-in user.
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
@@ -394,18 +414,7 @@ export default function App() {
       {/* Google Maps Quota Defense Banner */}
       {gmpQuotaExceeded && (
         <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm">
-          <span>
-            Google Maps Platform quota reached. If you are the app owner, visit{' '}
-            <a
-              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline font-semibold text-amber-950 hover:text-amber-800"
-            >
-              maps developer site
-            </a>{' '}
-            for instructions to update your account.
-          </span>
+          <span>Google Maps is unavailable. The map will use OpenStreetMap instead.</span>
         </div>
       )}
 
@@ -704,7 +713,15 @@ export default function App() {
         {activeTab === 'profile' && (
           <ProfileScreen
             currentUser={currentUser}
-            onLogout={async () => { await signOutFirebase(); setCurrentUser(null); }}
+            onLogout={async () => {
+              try {
+                await signOutFirebase();
+                setCurrentUser(null);
+                setActiveTab('home');
+              } catch {
+                window.alert('Sign out failed. You are still signed in. Please try again.');
+              }
+            }}
             lang={lang}
             onLangChange={setLang}
             onSwitchRole={(newRole) => {

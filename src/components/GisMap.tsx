@@ -9,7 +9,9 @@ import {
   useMapsLibrary
 } from '@vis.gl/react-google-maps';
 import { Road, Vehicle, Incident, IncidentMediaItem, NewsArticle, UserLocation } from '../types';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { MapFallback, MapErrorBoundary } from './MapFallback';
+import { GoogleMapLoader } from './GoogleMapLoader';
+import { isLatLng, normalizePath } from '../utils/mapCoordinates';
 import { Language, TRANSLATIONS, getLocalizedHighwayName, getLocalizedIncidentType, getLocalizedSeverity } from '../translations';
 import {
   Layers,
@@ -375,7 +377,7 @@ const CameraController: React.FC<{
 /**
  * Main Google Maps GIS Component for TerraNex
  */
-export const GisMap: React.FC<GisMapProps> = ({
+const GisMapContent: React.FC<GisMapProps> = ({
   roads,
   vehicles,
   incidents,
@@ -393,6 +395,16 @@ export const GisMap: React.FC<GisMapProps> = ({
   initialViewMode = 'Road Map',
   onViewModeChange
 }) => {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+  const [googleFailed, setGoogleFailed] = useState(false);
+  const useFallback = !apiKey || googleFailed;
+  const handleGoogleUnavailable = useCallback(() => setGoogleFailed(true), []);
+
+  useEffect(() => {
+    window.addEventListener('gmp-quota-exceeded', handleGoogleUnavailable);
+    return () => window.removeEventListener('gmp-quota-exceeded', handleGoogleUnavailable);
+  }, [handleGoogleUnavailable]);
+
   // Google Maps Base View: Roadmap, Satellite, Hybrid, Terrain
   const [viewMode, setViewMode] = useState<GisViewMode>(initialViewMode);
   const [activeScope, setActiveScope] = useState<MapViewScope>('ner');
@@ -674,21 +686,19 @@ export const GisMap: React.FC<GisMapProps> = ({
     }
   };
 
-  // Google Maps API Key from env with fallback to provisioned key
-  const apiKey =
-    (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY ||
-    (firebaseConfig as { apiKey?: string })?.apiKey ||
-    '';
+  const fallbackMap = <MapFallback roads={roads} vehicles={showVehicles ? vehicles : []} incidents={showIncidents ? incidents : []}
+    center={cameraCenter} zoom={cameraZoom} onSelectRoad={onSelectRoad}
+    onSelectVehicle={onSelectVehicle} onSelectIncident={onSelectIncident} />;
 
   return (
-    <div className="relative w-full border-2 border-black bg-neutral-900 shadow-[4px_4px_0px_#0a0a0a] overflow-hidden flex flex-col">
+    <div className="relative w-full border-2 border-black bg-neutral-900 shadow-[4px_4px_0px_#0a0a0a] overflow-hidden flex flex-col [&_button:disabled]:opacity-40 [&_button:disabled]:cursor-not-allowed">
       {/* Top Tactical Command HUD Bar */}
       <div className="p-2 sm:p-2.5 bg-neutral-950 border-b-2 border-black flex flex-wrap items-center justify-between gap-2 z-20 text-xs font-mono text-white">
         {/* Left: Google Maps Brand & Layer Mode Tabs */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <div className="flex items-center gap-1 px-2 py-1 bg-white text-black font-black uppercase text-[10px] tracking-wider border border-black shadow-[1px_1px_0px_#ff3e00]">
             <Globe className="w-3.5 h-3.5 text-[#ff3e00]" />
-            <span>Google Maps</span>
+            <span>{useFallback ? 'OpenStreetMap' : 'Google Maps'}</span>
           </div>
 
           {/* Map Type Mode Switcher */}
@@ -696,6 +706,7 @@ export const GisMap: React.FC<GisMapProps> = ({
             {(['Road Map', 'Satellite', 'Hybrid', 'Terrain'] as GisViewMode[]).map((mode) => (
               <button
                 key={mode}
+                disabled={useFallback}
                 onClick={() => {
                   setViewMode(mode);
                   if (onViewModeChange) onViewModeChange(mode);
@@ -713,6 +724,7 @@ export const GisMap: React.FC<GisMapProps> = ({
 
           {/* 3D Tilt Perspective Toggle */}
           <button
+            disabled={useFallback}
             onClick={() => setIs3DTilt(!is3DTilt)}
             className={`px-2 py-1 border text-[10px] uppercase font-bold flex items-center gap-1 transition cursor-pointer ${
               is3DTilt
@@ -730,6 +742,7 @@ export const GisMap: React.FC<GisMapProps> = ({
         <div className="flex items-center gap-1 flex-wrap text-[10px]">
           {/* Traffic Layer Toggle */}
           <button
+            disabled={useFallback}
             onClick={() => setShowTraffic(!showTraffic)}
             className={`px-2 py-0.5 border flex items-center gap-1 uppercase font-bold transition cursor-pointer ${
               showTraffic
@@ -744,6 +757,7 @@ export const GisMap: React.FC<GisMapProps> = ({
 
           {/* Transit Layer Toggle */}
           <button
+            disabled={useFallback}
             onClick={() => setShowTransit(!showTransit)}
             className={`px-2 py-0.5 border flex items-center gap-1 uppercase font-bold transition cursor-pointer ${
               showTransit
@@ -758,6 +772,7 @@ export const GisMap: React.FC<GisMapProps> = ({
 
           {/* Facilities Toggle */}
           <button
+            disabled={useFallback}
             onClick={() => setShowFacilities(!showFacilities)}
             className={`px-2 py-0.5 border flex items-center gap-1 uppercase font-bold transition cursor-pointer ${
               showFacilities
@@ -871,7 +886,9 @@ export const GisMap: React.FC<GisMapProps> = ({
 
       {/* Main Google Maps Viewport Container (Explicit CSS dimensions to prevent CF2 collapse) */}
       <div className="relative w-full h-[620px] sm:h-[680px] bg-neutral-950 overflow-hidden">
-        <APIProvider apiKey={apiKey} libraries={['places', 'marker', 'routes', 'geometry']}>
+        {useFallback ? fallbackMap : (
+        <APIProvider apiKey={apiKey} libraries={['marker']} onError={handleGoogleUnavailable}>
+          <GoogleMapLoader fallback={fallbackMap} onUnavailable={handleGoogleUnavailable}>
           <Map
             style={{ width: '100%', height: '100%' }}
             defaultCenter={REGION_PRESETS.ner.center}
@@ -958,7 +975,7 @@ export const GisMap: React.FC<GisMapProps> = ({
                     >
                       <Truck className="w-4 h-4 text-white" />
                       <span className="absolute -top-1.5 -right-1.5 px-1 py-0.2 bg-black text-white text-[8px] font-mono font-black border border-white">
-                        {v.vehicleNumber.slice(-4)}
+                        {String(v.vehicleNumber || '').slice(-4)}
                       </span>
                     </div>
                   </AdvancedMarker>
@@ -984,7 +1001,7 @@ export const GisMap: React.FC<GisMapProps> = ({
                         id: inc.id,
                         position: { lat: inc.lat, lng: inc.lng },
                         title: `${inc.type} Incident: ${inc.roadCode}`,
-                        subtitle: `${inc.description.slice(0, 60)}...`,
+                        subtitle: `${(inc.description || '').slice(0, 60)}...`,
                         statusBadge: inc.severity,
                         statusColor: isCritical ? '#dc2626' : '#d97706',
                         data: inc
@@ -1210,7 +1227,9 @@ export const GisMap: React.FC<GisMapProps> = ({
               </InfoWindow>
             )}
           </Map>
+          </GoogleMapLoader>
         </APIProvider>
+        )}
 
         {/* Embedded Interactive 360° Street View Recon Viewer */}
         {activeStreetView && (
@@ -1392,6 +1411,7 @@ export const GisMap: React.FC<GisMapProps> = ({
                 {/* Actions */}
                 <div className="flex gap-2 pt-1">
                   <button
+                    disabled={useFallback}
                     onClick={() => {
                       setActiveStreetView({
                         lat: selectedMapIncident.lat,
@@ -1426,19 +1446,27 @@ export const GisMap: React.FC<GisMapProps> = ({
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1 text-white">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-            <span>Google Maps Platform Active</span>
+            <span>{useFallback ? 'OpenStreetMap Active' : 'Google Maps Active'}</span>
           </span>
           <span className="hidden sm:inline text-neutral-500">|</span>
-          <span className="hidden sm:inline">
+          <span className={useFallback ? "hidden" : "hidden sm:inline"}>
             Active Layers: Traffic ({showTraffic ? 'ON' : 'OFF'}) • Transit ({showTransit ? 'ON' : 'OFF'}) • 3D ({is3DTilt ? '45° Tilt' : '2D'})
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span>Map ID: DEMO_MAP_ID</span>
-          <span className="text-neutral-500">•</span>
-          <span className="text-neutral-400">Attribution: gmp_mcp_codeassist_v1_aistudio</span>
-        </div>
+
       </div>
     </div>
   );
 };
+
+// Validate external coordinates before they reach either map renderer.
+export const GisMap: React.FC<GisMapProps> = (props) => (
+  <MapErrorBoundary>
+    <GisMapContent {...props}
+      roads={(Array.isArray(props.roads) ? props.roads : []).filter(Boolean).map(road => ({ ...road, coordinates: normalizePath(road.coordinates) }))}
+      vehicles={(Array.isArray(props.vehicles) ? props.vehicles : []).filter(vehicle => vehicle && isLatLng(vehicle.currentLocation))}
+      incidents={(Array.isArray(props.incidents) ? props.incidents : []).filter(isLatLng)}
+      newsArticles={(Array.isArray(props.newsArticles) ? props.newsArticles : []).filter(article => article && normalizePath([article.coordinates]).length > 0)}
+    />
+  </MapErrorBoundary>
+);

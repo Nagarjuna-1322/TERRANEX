@@ -12,7 +12,7 @@ App initially rendered login while Firebase was still restoring its saved sessio
 
 - Initialize Firebase Auth with IndexedDB and localStorage persistence. Wait for its first auth event before showing login. Handle signed-out events, initialization errors and logout errors.
 - Stop using a Firebase key as a Maps key. Optional VITE_GOOGLE_MAPS_API_KEY is documented in .env.example.
-- Fall back to the already-installed Leaflet library and OpenStreetMap if the Maps key is absent, rejected, fails loading or takes over 15 seconds. Roads, GPS, region selection, convoy and incident markers remain interactive. Google traffic, satellite imagery and Street View require a valid Maps key and are disabled in fallback mode.
+- Fall back to the already-installed Leaflet library and OpenStreetMap if the Maps key is absent, rejected, fails loading or takes over 15 seconds. Roads, GPS, region selection, convoy and incident markers remain interactive. Road, Satellite, Hybrid and Terrain styles and Facilities work in fallback mode. Traffic and Transit open Google Maps at the selected region; 3D opens Google Earth. These external buttons are labeled with an arrow. Embedded Google layers and Street View still require a valid Maps key.
 - Validate GPS coordinates and normalize road coordinate tuples / Firestore objects. A map-specific error boundary keeps navigation and the session available on render failures.
 - Handle profile audit-history network failures.
 

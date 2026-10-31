@@ -686,8 +686,13 @@ const GisMapContent: React.FC<GisMapProps> = ({
     }
   };
 
+  const openExternalLayer = (layer: 'traffic' | 'transit') => {
+    const params = new URLSearchParams({ api: '1', map_action: 'map', center: cameraCenter.lat + ',' + cameraCenter.lng, zoom: String(cameraZoom), layer });
+    window.open('https://www.google.com/maps/@?' + params, '_blank', 'noopener,noreferrer');
+  };
+
   const fallbackMap = <MapFallback roads={roads} vehicles={showVehicles ? vehicles : []} incidents={showIncidents ? incidents : []}
-    center={cameraCenter} zoom={cameraZoom} onSelectRoad={onSelectRoad}
+    center={cameraCenter} zoom={cameraZoom} viewMode={viewMode} facilities={showFacilities ? TACTICAL_FACILITIES : []} userLocation={userLocation} onSelectRoad={onSelectRoad}
     onSelectVehicle={onSelectVehicle} onSelectIncident={onSelectIncident} />;
 
   return (
@@ -698,7 +703,7 @@ const GisMapContent: React.FC<GisMapProps> = ({
         <div className="flex items-center gap-1.5 flex-wrap">
           <div className="flex items-center gap-1 px-2 py-1 bg-white text-black font-black uppercase text-[10px] tracking-wider border border-black shadow-[1px_1px_0px_#ff3e00]">
             <Globe className="w-3.5 h-3.5 text-[#ff3e00]" />
-            <span>{useFallback ? 'OpenStreetMap' : 'Google Maps'}</span>
+            <span>{useFallback ? (viewMode === 'Road Map' ? 'OpenStreetMap' : 'Esri Maps') : 'Google Maps'}</span>
           </div>
 
           {/* Map Type Mode Switcher */}
@@ -706,7 +711,6 @@ const GisMapContent: React.FC<GisMapProps> = ({
             {(['Road Map', 'Satellite', 'Hybrid', 'Terrain'] as GisViewMode[]).map((mode) => (
               <button
                 key={mode}
-                disabled={useFallback}
                 onClick={() => {
                   setViewMode(mode);
                   if (onViewModeChange) onViewModeChange(mode);
@@ -724,17 +728,16 @@ const GisMapContent: React.FC<GisMapProps> = ({
 
           {/* 3D Tilt Perspective Toggle */}
           <button
-            disabled={useFallback}
-            onClick={() => setIs3DTilt(!is3DTilt)}
+            onClick={() => useFallback ? window.open('https://earth.google.com/web/search/' + cameraCenter.lat + ',' + cameraCenter.lng, '_blank', 'noopener,noreferrer') : setIs3DTilt(!is3DTilt)}
             className={`px-2 py-1 border text-[10px] uppercase font-bold flex items-center gap-1 transition cursor-pointer ${
               is3DTilt
                 ? 'bg-amber-400 text-black border-black font-black'
                 : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700'
             }`}
-            title="Toggle 45° 3D Aerial Perspective"
+            title={useFallback ? 'Open this region in Google Earth (new tab)' : 'Toggle 45° 3D Aerial Perspective'}
           >
             <Mountain className="w-3 h-3" />
-            <span>{is3DTilt ? '3D Active' : '3D View'}</span>
+            <span>{useFallback ? '3D ↗' : is3DTilt ? '3D Active' : '3D View'}</span>
           </button>
         </div>
 
@@ -742,37 +745,34 @@ const GisMapContent: React.FC<GisMapProps> = ({
         <div className="flex items-center gap-1 flex-wrap text-[10px]">
           {/* Traffic Layer Toggle */}
           <button
-            disabled={useFallback}
-            onClick={() => setShowTraffic(!showTraffic)}
+            onClick={() => useFallback ? openExternalLayer('traffic') : setShowTraffic(!showTraffic)}
             className={`px-2 py-0.5 border flex items-center gap-1 uppercase font-bold transition cursor-pointer ${
-              showTraffic
+              !useFallback && showTraffic
                 ? 'bg-emerald-600 text-white border-black font-black'
                 : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:text-white'
             }`}
-            title="Real-time Google Traffic Conditions"
+            title={useFallback ? 'Open Google Maps traffic (new tab)' : 'Real-time Google Traffic Conditions'}
           >
             <Car className="w-3 h-3 text-emerald-300" />
-            <span>Traffic</span>
+            <span>{useFallback ? 'Traffic ↗' : 'Traffic'}</span>
           </button>
 
           {/* Transit Layer Toggle */}
           <button
-            disabled={useFallback}
-            onClick={() => setShowTransit(!showTransit)}
+            onClick={() => useFallback ? openExternalLayer('transit') : setShowTransit(!showTransit)}
             className={`px-2 py-0.5 border flex items-center gap-1 uppercase font-bold transition cursor-pointer ${
-              showTransit
+              !useFallback && showTransit
                 ? 'bg-sky-600 text-white border-black font-black'
                 : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:text-white'
             }`}
-            title="Railway and Transit Corridors"
+            title={useFallback ? 'Open Google Maps transit (new tab)' : 'Railway and Transit Corridors'}
           >
             <Train className="w-3 h-3 text-sky-300" />
-            <span>Transit</span>
+            <span>{useFallback ? 'Transit ↗' : 'Transit'}</span>
           </button>
 
           {/* Facilities Toggle */}
           <button
-            disabled={useFallback}
             onClick={() => setShowFacilities(!showFacilities)}
             className={`px-2 py-0.5 border flex items-center gap-1 uppercase font-bold transition cursor-pointer ${
               showFacilities
@@ -1446,7 +1446,7 @@ const GisMapContent: React.FC<GisMapProps> = ({
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1 text-white">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-            <span>{useFallback ? 'OpenStreetMap Active' : 'Google Maps Active'}</span>
+            <span>{useFallback ? viewMode + ' Active' : 'Google Maps Active'}</span>
           </span>
           <span className="hidden sm:inline text-neutral-500">|</span>
           <span className={useFallback ? "hidden" : "hidden sm:inline"}>

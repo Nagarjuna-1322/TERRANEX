@@ -10,12 +10,15 @@ interface Props {
   incidents: Incident[];
   center: { lat: number; lng: number };
   zoom: number;
+  viewMode: 'Road Map' | 'Satellite' | 'Hybrid' | 'Terrain';
+  facilities: { id: string; name: string; lat: number; lng: number; type: string }[];
+  userLocation?: { lat: number; lng: number } | null;
   onSelectRoad?: (road: Road) => void;
   onSelectVehicle?: (vehicle: Vehicle) => void;
   onSelectIncident?: (incident: Incident) => void;
 }
 
-export function MapFallback({ roads, vehicles, incidents, center, zoom, onSelectRoad, onSelectVehicle, onSelectIncident }: Props) {
+export function MapFallback({ roads, vehicles, incidents, center, zoom, viewMode, facilities, userLocation, onSelectRoad, onSelectVehicle, onSelectIncident }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const [tileError, setTileError] = useState(false);
@@ -24,11 +27,6 @@ export function MapFallback({ roads, vehicles, incidents, center, zoom, onSelect
     if (!container.current) return;
     const instance = L.map(container.current).setView([center.lat, center.lng], zoom);
     map.current = instance;
-    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19
-    }).addTo(instance);
-    tiles.on('tileerror', () => setTileError(true));
     const observer = new ResizeObserver(() => instance.invalidateSize());
     observer.observe(container.current);
     return () => {
@@ -39,6 +37,27 @@ export function MapFallback({ roads, vehicles, incidents, center, zoom, onSelect
   }, []);
 
   useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    setTileError(false);
+    const layers = L.layerGroup().addTo(instance);
+    const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+    const url = viewMode === 'Road Map' ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+      : esri + (viewMode === 'Terrain' ? 'World_Shaded_Relief' : 'World_Imagery') + '/MapServer/tile/{z}/{y}/{x}';
+    L.tileLayer(url, {
+      attribution: viewMode === 'Road Map' ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        : 'Tiles &copy; Esri; Sources: Esri, Maxar, Earthstar Geographics, USGS and the GIS User Community',
+      maxNativeZoom: viewMode === 'Terrain' ? 13 : 19, maxZoom: 19
+    }).on('tileerror', () => setTileError(true)).addTo(layers);
+    if (viewMode === 'Hybrid' || viewMode === 'Terrain') {
+      L.tileLayer(esri + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19, attribution: 'Labels &copy; Esri and contributors'
+      }).on('tileerror', () => setTileError(true)).addTo(layers);
+    }
+    return () => { layers.remove(); };
+  }, [viewMode]);
+
+  useEffect(() => {
     map.current?.setView([center.lat, center.lng], zoom);
   }, [center.lat, center.lng, zoom]);
 
@@ -46,6 +65,14 @@ export function MapFallback({ roads, vehicles, incidents, center, zoom, onSelect
     const instance = map.current;
     if (!instance) return;
     const layer = L.layerGroup().addTo(instance);
+    facilities.forEach((facility) => {
+      if (!isLatLng(facility)) return;
+      const label = document.createElement('span');
+      label.textContent = facility.name;
+      L.circleMarker([facility.lat, facility.lng], { radius: 8, color: facility.type === 'hospital' ? '#be123c' : '#92400e', fillColor: '#fff', fillOpacity: 1 })
+        .addTo(layer).bindTooltip(label).bindPopup(label.cloneNode(true) as HTMLElement);
+    });
+    if (isLatLng(userLocation)) L.circleMarker([userLocation.lat, userLocation.lng], { radius: 10, color: '#059669', fillOpacity: 1 }).addTo(layer).bindTooltip('Your location');
     roads.forEach((road) => {
       const coordinates = normalizePath(road.coordinates);
       if (coordinates.length < 2) return;
@@ -70,7 +97,7 @@ export function MapFallback({ roads, vehicles, incidents, center, zoom, onSelect
       }).addTo(layer).on('click', () => onSelectIncident?.(incident));
     });
     return () => { layer.remove(); };
-  }, [roads, vehicles, incidents, onSelectRoad, onSelectVehicle, onSelectIncident]);
+  }, [roads, vehicles, incidents, facilities, userLocation, onSelectRoad, onSelectVehicle, onSelectIncident]);
 
   return (
     <div className="relative isolate h-full w-full">
@@ -78,7 +105,7 @@ export function MapFallback({ roads, vehicles, incidents, center, zoom, onSelect
       <div role="status" className="absolute left-12 right-3 top-3 z-[500] bg-white text-black border-2 border-black p-3 text-xs shadow-md">
         {tileError
           ? 'Map tiles could not load. Available roads and markers are still shown; check your connection.'
-          : 'Using OpenStreetMap. Google traffic, satellite imagery and Street View are unavailable.'}
+          : 'Interactive map. Traffic, Transit and 3D buttons open external map views (↗).'}
       </div>
     </div>
   );
